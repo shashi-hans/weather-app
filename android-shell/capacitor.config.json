@@ -1,0 +1,13 @@
+{
+  "appId": "in.coverstack.weathernow",
+  "appName": "WeatherNow",
+  "webDir": "www",
+  "server": {
+    "url": "https://weatherskyapp.vercel.app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
