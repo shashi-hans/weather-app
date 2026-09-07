@@ -4,6 +4,7 @@ node_modules/
 # Next.js build output
 .next/
 out/
+tsconfig.tsbuildinfo
 
 # Secrets and local environment
 .env
@@ -30,3 +31,4 @@ android-shell/android/app/src/main/assets/capacitor.plugins.json
 .idea/
 *.iml
 *.log
+node_modules
