@@ -1,10 +1,9 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { POPULAR_CITIES } from '../lib/cities'
 
 /** Delay before hiding the suggestions, so a click on a suggestion registers before blur closes it. */
 const BLUR_CLOSE_DELAY_MS = 150
-
-const POPULAR = ['New York', 'London', 'Tokyo', 'Paris', 'Dubai', 'Sydney', 'Mumbai', 'Toronto']
 
 type Props = {
   onSearch: (city: string) => void
@@ -80,7 +79,7 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
               Popular Cities
             </p>
             <div className="flex flex-wrap gap-2">
-              {POPULAR.map((c) => (
+              {POPULAR_CITIES.map((c) => (
                 <button
                   key={c}
                   onMouseDown={() => { onSearch(c); setQuery(c); setFocused(false) }}

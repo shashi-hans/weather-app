@@ -102,6 +102,27 @@ export function getWeatherEmoji(code: number, isDay = true): string {
   return '🌡️'
 }
 
+const SECONDS_PER_DAY = 86400
+
+const timeOfDay = (unix: number) => ((unix % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY
+
+/**
+ * Whether a timestamp falls between sunrise and sunset at the location.
+ * Weather icons use this rather than the interface theme, so a dark-themed
+ * app still shows a sun for a city where it is midday.
+ *
+ * Only the time of day is compared, so one day's sunrise and sunset also
+ * classify forecast slots two or three days out.
+ */
+export function isDaytime(unix: number, sunrise: number, sunset: number): boolean {
+  if (!sunrise || !sunset) return true
+  const t    = timeOfDay(unix)
+  const rise = timeOfDay(sunrise)
+  const set  = timeOfDay(sunset)
+  // Past the date line the sunset lands on the next UTC day, so the daylight window wraps.
+  return rise <= set ? t >= rise && t < set : t >= rise || t < set
+}
+
 export function getUVLabel(uv: number): { label: string; color: string } {
   if (uv < 3)  return { label: 'Low',      color: '#4ade80' }
   if (uv < 6)  return { label: 'Moderate', color: '#facc15' }
@@ -111,13 +132,16 @@ export function getUVLabel(uv: number): { label: string; color: string } {
 }
 
 /**
- * Hours covered by a list of timestamped forecast slots.
+ * Forecast slots falling inside a window that starts at the first slot.
  * Slot spacing differs between the live API (3 hours) and the sample data (1 hour),
- * so headings read this instead of assuming one item is one hour.
+ * so a "24 hour" view selects by timestamp rather than by taking a fixed number of items.
+ * At least one slot is always returned.
  */
-export function spanHours(items: { dt: number }[]): number {
-  if (items.length < 2) return items.length
-  return Math.round((items[items.length - 1].dt - items[0].dt) / 3600)
+export function slotsWithinHours<T extends { dt: number }>(items: T[], hours: number): T[] {
+  if (items.length === 0) return items
+  const cutoff = items[0].dt + hours * 3600
+  const within = items.filter((i) => i.dt < cutoff)
+  return within.length > 0 ? within : items.slice(0, 1)
 }
 
 // ─── Mock data for demo when no API key ───────────────────────────────────────

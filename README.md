@@ -10,9 +10,9 @@ A stunning weather application built with **Next.js 14**, **React**, **Recharts*
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)
 - 💨 **Wind compass** — visual direction indicator
 - ☀️ **UV Index bar** — color-coded severity scale
-- 🌙 **Day/Night toggle** — smooth theme transition with auto-detect from system time
-- 📍 **Location detection** — automatic GPS or manual city search
-- 🏙️ **City search** — with popular city quick-select
+- 🌙 **Day/Night theme** — follows the operating system's light/dark setting on desktop and Android, and reacts if the system flips while the app is open. The toggle pins a choice that survives restarts; "Use system" clears it.
+- 📍 **Location detection** — the first card always tracks device GPS, falling back to a city search when location is denied
+- 🏙️ **Multiple cities** — "+" beside the city name adds a city; the blue hero scrolls horizontally with snap, and the hourly, daily, chart and detail sections follow whichever city is visible. Up to 8 saved cities, kept in `localStorage` on the device and never sent anywhere.
 - 📱 **Fully responsive** — laptop, desktop, tablet, mobile
 - 🎭 **Demo mode** — works without an API key using realistic mock data
 
@@ -70,8 +70,13 @@ app/
 │   ├── SearchBar           ← City search with suggestions
 │   ├── DayNightToggle      ← Animated theme toggle
 │   └── WeatherSkeleton     ← Loading state
-├── hooks/useWeather.ts     ← Custom hook for API calls
-├── lib/weather.ts          ← Types, utilities, mock data
+│   └── AddCityDialog       ← Add-a-city modal
+├── hooks/
+│   ├── useCityWeather.ts   ← Saved cities, per-city fetching, active card
+│   └── useTheme.ts         ← System light/dark with a pinnable override
+├── lib/
+│   ├── weather.ts          ← Types, utilities, mock data
+│   └── cities.ts           ← localStorage for the saved city list
 ├── globals.css             ← Day/night CSS variables + animations
 ├── layout.tsx
 └── page.tsx                ← Main orchestrator
@@ -100,4 +105,6 @@ Notes:
 
 ## 🎨 Day / Night Themes
 
-The toggle button switches between two complete themes via CSS custom properties. The app also auto-detects your system time — before 6am or after 8pm defaults to Night mode.
+Two complete themes are defined as CSS custom properties. The default follows `prefers-color-scheme`, so the app matches the desktop or Android system setting, and a matching `@media` block paints the first frame before JavaScript runs so a dark device never flashes white. Using the toggle stores a choice in `localStorage` that wins over the system setting until "Use system" clears it.
+
+Weather icons are chosen from the location's own sunrise and sunset rather than the interface theme, so a dark-themed app still shows a sun for a city where it is midday.

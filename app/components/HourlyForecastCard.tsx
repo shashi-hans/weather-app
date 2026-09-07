@@ -4,9 +4,12 @@ import {
   CartesianGrid, Tooltip, ReferenceLine
 } from 'recharts'
 import type { HourlyForecast } from '../lib/weather'
-import { formatTemp, formatHour, getWeatherEmoji, spanHours } from '../lib/weather'
+import { formatTemp, formatHour, getWeatherEmoji, slotsWithinHours, isDaytime } from '../lib/weather'
 
-type Props = { hourly: HourlyForecast[]; isNight: boolean }
+/** Length of the hourly view. The live API returns 3-hour slots, so this is 8 of them. */
+const HOURS = 24
+
+type Props = { hourly: HourlyForecast[]; isNight: boolean; sunrise: number; sunset: number }
 
 function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
@@ -24,17 +27,17 @@ function CustomTooltip({ active, payload }: any) {
   )
 }
 
-export default function HourlyForecastCard({ hourly, isNight }: Props) {
-  const slots = hourly.slice(0, 24)
+export default function HourlyForecastCard({ hourly, isNight, sunrise, sunset }: Props) {
+  const slots = slotsWithinHours(hourly, HOURS)
   const data = slots.map((h) => ({
     dt:       h.dt,
     time:     formatHour(h.dt),
     temp:     Math.round(h.temp),
     humidity: h.humidity,
     pop:      h.pop,
-    emoji:    getWeatherEmoji(h.condition.id, !isNight),
+    // Sunrise and sunset shift by a minute or two across the window, which does not change the icon.
+    emoji:    getWeatherEmoji(h.condition.id, isDaytime(h.dt, sunrise, sunset)),
   }))
-  const hours = spanHours(slots)
 
   const accent = isNight ? '#818cf8' : '#0ea5e9'
   const accentLight = isNight ? 'rgba(129,140,248,0.15)' : 'rgba(14,165,233,0.15)'
@@ -42,7 +45,7 @@ export default function HourlyForecastCard({ hourly, isNight }: Props) {
   return (
     <div className="glass-card rounded-3xl p-5 animate-fadeInUp">
       <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-        ⏰ Next {hours}-Hour Forecast
+        ⏰ {HOURS}-Hour Forecast
       </h3>
 
       {/* Scrollable emoji row */}

@@ -3,9 +3,9 @@ import { useState } from 'react'
 import type { DailyForecast } from '../lib/weather'
 import { formatTemp, formatDay, formatDate, getWeatherEmoji, getUVLabel } from '../lib/weather'
 
-type Props = { daily: DailyForecast[]; isNight: boolean }
+type Props = { daily: DailyForecast[] }
 
-export default function DailyForecastCard({ daily, isNight }: Props) {
+export default function DailyForecastCard({ daily }: Props) {
   const [selected, setSelected] = useState(0)
   if (daily.length === 0) return null
   // A shorter forecast can leave the stored index past the end of the list.
@@ -22,7 +22,7 @@ export default function DailyForecastCard({ daily, isNight }: Props) {
       {/* Day pills */}
       <div className="forecast-grid mb-5">
         {daily.map((d, i) => {
-          const emoji = getWeatherEmoji(d.condition.id, !isNight)
+          const emoji = getWeatherEmoji(d.condition.id, true)
           const isActive = i === index
           return (
             <button
@@ -64,7 +64,7 @@ export default function DailyForecastCard({ daily, isNight }: Props) {
               {sel.condition.description}
             </p>
           </div>
-          <span className="text-5xl">{getWeatherEmoji(sel.condition.id, !isNight)}</span>
+          <span className="text-5xl">{getWeatherEmoji(sel.condition.id, true)}</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

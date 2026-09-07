@@ -4,6 +4,7 @@
 
 /* ─── CSS Variables: Day / Night themes ─────────────────────────────────────── */
 :root {
+  color-scheme: light;
   --bg-primary:      #e0f2fe;
   --bg-secondary:    #bae6fd;
   --bg-card:         rgba(255,255,255,0.55);
@@ -23,7 +24,43 @@
   --dropdown-bg:     #f0f9ff;
 }
 
+/*
+ * Night palette applies in two cases: the operating system asks for dark and the user has not
+ * pinned day, or the user pinned night. The media rule also paints the first frame correctly,
+ * before the theme script runs, so a dark device never flashes a light screen.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="day"]) {
+    color-scheme: dark;
+    --bg-primary:      #0a0f1e;
+    --bg-secondary:    #111827;
+    --bg-card:         rgba(17,24,39,0.7);
+    --bg-card-hover:   rgba(31,41,55,0.85);
+    --bg-glass:        rgba(17,24,39,0.5);
+    --border-glass:    rgba(99,102,241,0.25);
+    --text-primary:    #e2e8f0;
+    --text-secondary:  #a5b4fc;
+    --text-muted:      #6b7280;
+    --accent:          #818cf8;
+    --accent-light:    #a5b4fc;
+    --gradient-hero:   linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #0f172a 100%);
+    --gradient-card:   linear-gradient(135deg, rgba(99,102,241,0.15), rgba(17,24,39,0.3));
+    --shadow-card:     0 8px 32px rgba(129, 140, 248, 0.1);
+    --sun-opacity:     0;
+    --moon-opacity:    1;
+    --dropdown-bg:     #111827;
+  }
+  :root:not([data-theme="day"]) .toggle-track {
+    background: linear-gradient(to right, #4f46e5, #7c3aed);
+    box-shadow: 0 0 12px rgba(129,140,248,0.5);
+  }
+  :root:not([data-theme="day"]) .day-active {
+    box-shadow: 0 4px 14px rgba(129,140,248,0.4);
+  }
+}
+
 [data-theme="night"] {
+  color-scheme: dark;
   --bg-primary:      #0a0f1e;
   --bg-secondary:    #111827;
   --bg-card:         rgba(17,24,39,0.7);
@@ -157,6 +194,25 @@ body {
 
 /* ─── Weather icon bounce ────────────────────────────────────────────────────── */
 .weather-icon-main { animation: float 3s ease-in-out infinite; }
+
+/* ─── City carousel: one full-width hero panel per saved city ────────────────── */
+.hero-scroll {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.hero-scroll::-webkit-scrollbar { display: none; }
+
+.hero-page {
+  flex: 0 0 100%;
+  min-width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
 
 /* ─── Hourly scroll ──────────────────────────────────────────────────────────── */
 .hourly-scroll {

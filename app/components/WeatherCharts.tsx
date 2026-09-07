@@ -4,7 +4,10 @@ import {
   CartesianGrid, Tooltip
 } from 'recharts'
 import type { DailyForecast, HourlyForecast } from '../lib/weather'
-import { formatDay, formatTemp, spanHours } from '../lib/weather'
+import { formatDay, formatTemp, slotsWithinHours } from '../lib/weather'
+
+/** Length of the humidity and rain view, matching the hourly forecast card. */
+const HUMIDITY_HOURS = 24
 
 type Props = { daily: DailyForecast[]; hourly: HourlyForecast[]; isNight: boolean }
 
@@ -33,8 +36,7 @@ export default function WeatherCharts({ daily, hourly, isNight }: Props) {
     temp_min: Math.round(d.temp_min),
   }))
 
-  const humiditySlots = hourly.slice(0, 12)
-  const humidityHours = spanHours(humiditySlots)
+  const humiditySlots = slotsWithinHours(hourly, HUMIDITY_HOURS)
   const humidityData = humiditySlots.map((h) => ({
     time:     new Date(h.dt * 1000).getHours() + 'h',
     humidity: h.humidity,
@@ -65,7 +67,7 @@ export default function WeatherCharts({ daily, hourly, isNight }: Props) {
       {/* Humidity + rain probability */}
       <div className="glass-card rounded-3xl p-5">
         <h3 className="text-base font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-          💧 Humidity & Rain ({humidityHours}h)
+          💧 Humidity & Rain ({HUMIDITY_HOURS}h)
         </h3>
         <div style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
