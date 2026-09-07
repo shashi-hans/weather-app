@@ -5,8 +5,8 @@ A stunning weather application built with **Next.js 14**, **React**, **Recharts*
 ## ✨ Features
 
 - 🌡️ **Current conditions** — temperature, feels like, humidity, wind, pressure, visibility
-- ⏰ **24-hour hourly forecast** — scrollable cards + interactive area chart
-- 📅 **7-day forecast** — clickable day selector with detailed breakdown
+- ⏰ **Hourly forecast** — scrollable cards + interactive area chart. The free OpenWeather plan returns 3-hour slots, so 24 cards cover 72 hours; headings show the span the data actually covers.
+- 📅 **Multi-day forecast** — clickable day selector with detailed breakdown. The free plan covers 5 days, so the heading reads "5-Day Forecast" with a live key and "7-Day Forecast" in demo mode.
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)
 - 💨 **Wind compass** — visual direction indicator
 - ☀️ **UV Index bar** — color-coded severity scale
@@ -53,7 +53,8 @@ npm start
 | Recharts | Temperature & humidity charts |
 | Tailwind CSS | Utility styling |
 | CSS Variables | Day/Night theming |
-| OpenWeatherMap | Weather data (One Call API 3.0) |
+| OpenWeatherMap | Weather data (`/data/2.5/weather`, `/forecast`, `/uvi`) |
+| Capacitor 6 | Android WebView shell in `android-shell/` |
 
 ## 📁 Project Structure
 
@@ -62,8 +63,8 @@ app/
 ├── api/weather/route.ts    ← Backend: fetches OpenWeatherMap API
 ├── components/
 │   ├── CurrentWeatherCard  ← Hero card with big temperature
-│   ├── HourlyForecastCard  ← 24h scroll + area chart
-│   ├── DailyForecastCard   ← 7-day selector
+│   ├── HourlyForecastCard  ← hourly scroll + area chart
+│   ├── DailyForecastCard   ← day selector
 │   ├── WeatherCharts       ← Recharts bar charts
 │   ├── ExtraDetails        ← Wind compass, UV, atmosphere
 │   ├── SearchBar           ← City search with suggestions
@@ -75,6 +76,27 @@ app/
 ├── layout.tsx
 └── page.tsx                ← Main orchestrator
 \`\`\`
+
+## 📱 Android APK
+
+`android-shell/` holds a Capacitor project that wraps the deployed site in a native WebView. The app has no bundled UI: it loads the URL in `android-shell/capacitor.config.json` (`server.url`), so it needs a network connection and it shows whatever is currently deployed. The `www/index.html` page is only the offline placeholder.
+
+Rebuild after changing the URL:
+
+\`\`\`bash
+cd android-shell
+npx cap sync android
+cd android
+ANDROID_SDK_ROOT=<path-to-android-sdk> ./gradlew assembleDebug
+\`\`\`
+
+The APK lands in `android-shell/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Notes:
+
+- `assembleDebug` produces a debug-signed APK. It installs from a file manager once "install unknown apps" is allowed, but the Play Store needs a release build signed with your own keystore (`assembleRelease`).
+- The manifest declares `ACCESS_COARSE_LOCATION` and `ACCESS_FINE_LOCATION` so the "Use My Location" button works. Android asks for the permission on first use; denying it falls back to a city search.
+- `minSdkVersion` is 22, so the app installs on Android 5.1 and newer.
 
 ## 🎨 Day / Night Themes
 

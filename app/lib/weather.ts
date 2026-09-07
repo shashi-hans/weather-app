@@ -110,10 +110,14 @@ export function getUVLabel(uv: number): { label: string; color: string } {
   return { label: 'Extreme', color: '#c084fc' }
 }
 
-export function getAQILabel(aqi: number): { label: string; color: string } {
-  const labels = ['', 'Good','Fair','Moderate','Poor','Very Poor']
-  const colors = ['','#4ade80','#a3e635','#facc15','#fb923c','#f87171']
-  return { label: labels[aqi] ?? 'N/A', color: colors[aqi] ?? '#9ca3af' }
+/**
+ * Hours covered by a list of timestamped forecast slots.
+ * Slot spacing differs between the live API (3 hours) and the sample data (1 hour),
+ * so headings read this instead of assuming one item is one hour.
+ */
+export function spanHours(items: { dt: number }[]): number {
+  if (items.length < 2) return items.length
+  return Math.round((items[items.length - 1].dt - items[0].dt) / 3600)
 }
 
 // ─── Mock data for demo when no API key ───────────────────────────────────────

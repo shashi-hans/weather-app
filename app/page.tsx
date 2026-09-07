@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useWeather } from './hooks/useWeather'
 import DayNightToggle from './components/DayNightToggle'
 import SearchBar from './components/SearchBar'
@@ -13,6 +13,7 @@ import WeatherSkeleton from './components/WeatherSkeleton'
 export default function WeatherApp() {
   const [isNight, setIsNight] = useState(false)
   const { data, status, error, fetchByLocation, fetchByCity } = useWeather()
+  const didAutoLoad = useRef(false)
 
   // Auto-detect theme from system time
   useEffect(() => {
@@ -25,12 +26,14 @@ export default function WeatherApp() {
     document.documentElement.setAttribute('data-theme', isNight ? 'night' : 'day')
   }, [isNight])
 
-  // Load weather on mount
+  // Load weather on mount. The ref keeps React's development double-render from firing two lookups.
   useEffect(() => {
+    if (didAutoLoad.current) return
+    didAutoLoad.current = true
     fetchByLocation()
-  }, [])
+  }, [fetchByLocation])
 
-  const loading = status === 'idle' || status === 'locating' || status === 'loading'
+  const loading = status === 'locating' || status === 'loading'
 
   return (
     <div

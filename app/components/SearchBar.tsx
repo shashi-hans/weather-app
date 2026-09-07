@@ -1,5 +1,8 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+
+/** Delay before hiding the suggestions, so a click on a suggestion registers before blur closes it. */
+const BLUR_CLOSE_DELAY_MS = 150
 
 const POPULAR = ['New York', 'London', 'Tokyo', 'Paris', 'Dubai', 'Sydney', 'Mumbai', 'Toronto']
 
@@ -13,6 +16,14 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
   const [query, setQuery]       = useState('')
   const [focused, setFocused]   = useState(false)
   const inputRef                = useRef<HTMLInputElement>(null)
+  const blurTimer               = useRef<ReturnType<typeof setTimeout>>()
+
+  useEffect(() => () => clearTimeout(blurTimer.current), [])
+
+  function handleBlur() {
+    clearTimeout(blurTimer.current)
+    blurTimer.current = setTimeout(() => setFocused(false), BLUR_CLOSE_DELAY_MS)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +42,7 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            onBlur={handleBlur}
             placeholder="Search city..."
             className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-medium outline-none transition-all"
             style={{

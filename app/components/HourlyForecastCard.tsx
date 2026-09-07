@@ -4,7 +4,7 @@ import {
   CartesianGrid, Tooltip, ReferenceLine
 } from 'recharts'
 import type { HourlyForecast } from '../lib/weather'
-import { formatTemp, formatHour, getWeatherEmoji } from '../lib/weather'
+import { formatTemp, formatHour, getWeatherEmoji, spanHours } from '../lib/weather'
 
 type Props = { hourly: HourlyForecast[]; isNight: boolean }
 
@@ -25,13 +25,16 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 export default function HourlyForecastCard({ hourly, isNight }: Props) {
-  const data = hourly.slice(0, 24).map((h) => ({
+  const slots = hourly.slice(0, 24)
+  const data = slots.map((h) => ({
+    dt:       h.dt,
     time:     formatHour(h.dt),
     temp:     Math.round(h.temp),
     humidity: h.humidity,
     pop:      h.pop,
     emoji:    getWeatherEmoji(h.condition.id, !isNight),
   }))
+  const hours = spanHours(slots)
 
   const accent = isNight ? '#818cf8' : '#0ea5e9'
   const accentLight = isNight ? 'rgba(129,140,248,0.15)' : 'rgba(14,165,233,0.15)'
@@ -39,14 +42,14 @@ export default function HourlyForecastCard({ hourly, isNight }: Props) {
   return (
     <div className="glass-card rounded-3xl p-5 animate-fadeInUp">
       <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-        ⏰ 24-Hour Forecast
+        ⏰ Next {hours}-Hour Forecast
       </h3>
 
       {/* Scrollable emoji row */}
       <div className="hourly-scroll flex gap-3 mb-4">
         {data.map((h, i) => (
           <div
-            key={i}
+            key={h.dt}
             className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-2xl min-w-[64px]"
             style={{
               background: i === 0 ? accent : 'var(--bg-glass)',
