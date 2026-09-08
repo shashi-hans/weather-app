@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import type { CityEntry } from '../hooks/useCityWeather'
 import { formatTemp, formatTime, windDirection, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
 
@@ -139,6 +139,8 @@ export default function CurrentWeatherCard({
   const active  = entries[activeIndex] ?? entries[0]
   const weather = active?.data?.current
   const uv      = weather ? getUVLabel(weather.uv_index) : null
+  // Chance of rain in the nearest forecast slot, which is the next 3 hours on the live API.
+  const rainChance = Math.round((active?.data?.hourly?.[0]?.pop ?? 0) * 100)
 
   return (
     <div className="glass-card rounded-3xl overflow-hidden animate-fadeInUp">
@@ -185,12 +187,12 @@ export default function CurrentWeatherCard({
           <div className="grid grid-cols-3 gap-px"
             style={{ background: 'var(--border-glass)' }}>
             {[
-              { icon: '💧', label: 'Humidity',   value: `${weather.humidity}%` },
-              { icon: '💨', label: 'Wind',       value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
-              { icon: '🌡️', label: 'Pressure',   value: `${weather.pressure} hPa` },
-              { icon: '👁️', label: 'Visibility', value: `${(weather.visibility / 1000).toFixed(1)} km` },
-              { icon: '☀️', label: 'UV Index',   value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
-              { icon: '☁️', label: 'Cloud Cover', value: `${weather.clouds}%` },
+              { icon: '🌧️', label: 'Rain Chance', value: `${rainChance}%` },
+              { icon: '☀️', label: 'UV Index',    value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
+              { icon: '💨', label: 'Wind',        value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
+              { icon: '💧', label: 'Humidity',    value: `${weather.humidity}%` },
+              { icon: '🌡️', label: 'Pressure',    value: `${weather.pressure} hPa` },
+              { icon: '👁️', label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },
             ].map((s) => (
               <div
                 key={s.label}
@@ -207,26 +209,26 @@ export default function CurrentWeatherCard({
             ))}
           </div>
 
-          <div className="flex items-center justify-around py-4 px-6">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🌅</span>
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Sunrise</p>
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {formatTime(weather.sunrise, weather.timezone)}
-                </p>
-              </div>
-            </div>
-            <div className="h-8 w-px" style={{ background: 'var(--border-glass)' }} />
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🌇</span>
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Sunset</p>
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {formatTime(weather.sunset, weather.timezone)}
-                </p>
-              </div>
-            </div>
+          {/* Sun times and cloud cover share the closing row */}
+          <div className="flex items-center justify-between py-4 px-3 gap-1">
+            {[
+              { icon: '\ud83c\udf05', label: 'Sunrise',     value: formatTime(weather.sunrise, weather.timezone) },
+              { icon: '\ud83c\udf07', label: 'Sunset',      value: formatTime(weather.sunset, weather.timezone) },
+              { icon: '\u2601\ufe0f', label: 'Cloud Cover', value: `${weather.clouds}%` },
+            ].map((s, i) => (
+              <Fragment key={s.label}>
+                {i > 0 && <div className="h-8 w-px flex-shrink-0" style={{ background: 'var(--border-glass)' }} />}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xl flex-shrink-0">{s.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+                    <p className="font-bold text-sm whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
+                      {s.value}
+                    </p>
+                  </div>
+                </div>
+              </Fragment>
+            ))}
           </div>
         </>
       )}

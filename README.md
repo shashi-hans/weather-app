@@ -4,7 +4,7 @@ A stunning weather application built with **Next.js 14**, **React**, **Recharts*
 
 ## ✨ Features
 
-- 🌡️ **Current conditions** — temperature, feels like, humidity, wind, pressure, visibility
+- 🌡️ **Current conditions** — temperature, feels like, then a readings strip of rain chance, UV index, wind, humidity, pressure and visibility, with sunrise, sunset and cloud cover below it
 - ⏰ **Hourly forecast** — scrollable cards + interactive area chart. The free OpenWeather plan returns 3-hour slots, so 24 cards cover 72 hours; headings show the span the data actually covers.
 - 📅 **Multi-day forecast** — clickable day selector with detailed breakdown. The free plan covers 5 days, so the heading reads "5-Day Forecast" with a live key and "7-Day Forecast" in demo mode.
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)
