@@ -88,6 +88,12 @@ function HeroPanel({
           {weather && (
             <>
               <p className="capitalize text-white/80 text-sm mb-3">{weather.condition.description}</p>
+              {entry.cachedAt && (
+                <p className="text-white/70 text-xs mb-3 flex items-center gap-1.5">
+                  <span aria-hidden="true">⚡</span>
+                  Offline — saved reading from {new Date(entry.cachedAt).toLocaleTimeString()}
+                </p>
+              )}
               <div className="flex items-end gap-3">
                 <span className="text-6xl md:text-7xl font-black leading-none tracking-tighter">
                   {formatTemp(weather.temp)}C
