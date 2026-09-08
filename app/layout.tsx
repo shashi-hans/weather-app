@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Weather Sky — Beautiful Weather App',
-  description: 'Real-time weather with 7-day forecast, hourly data, charts and location detection.',
+  description: 'Real-time weather with a multi-day forecast, hourly data, charts and location detection.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -26,9 +26,13 @@ function fetchUpstream(url: string) {
   return fetch(url, { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) })
 }
 
-/** Parse a coordinate string, returning null when it is not a real number in range. */
+/**
+ * Parse a coordinate string, returning null when it is not a real number in range.
+ * An empty or blank value is rejected rather than accepted: Number('') is 0, which
+ * would otherwise be read as a request for 0N 0E.
+ */
 function parseCoord(value: string | null, limit: number): number | null {
-  if (value === null) return null
+  if (value === null || value.trim() === '') return null
   const n = Number(value)
   if (!Number.isFinite(n) || Math.abs(n) > limit) return null
   return n
@@ -72,11 +76,18 @@ export async function GET(request: NextRequest) {
       fetchUpstream(`${BASE}/data/2.5/forecast?${locationQuery}&units=metric&cnt=40&appid=${API_KEY}`),
     ])
 
-    if (weatherRes.status === 404) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 })
+    // An unread body holds its connection open, so discard the one that is no longer needed.
+    if (!weatherRes.ok || !forecastRes.ok) {
+      await Promise.all([
+        weatherRes.body?.cancel().catch(() => {}),
+        forecastRes.body?.cancel().catch(() => {}),
+      ])
+      if (weatherRes.status === 404) {
+        return NextResponse.json({ error: 'Location not found' }, { status: 404 })
+      }
+      if (!weatherRes.ok) throw new Error(`OpenWeather current returned ${weatherRes.status}`)
+      throw new Error(`OpenWeather forecast returned ${forecastRes.status}`)
     }
-    if (!weatherRes.ok) throw new Error(`OpenWeather current returned ${weatherRes.status}`)
-    if (!forecastRes.ok) throw new Error(`OpenWeather forecast returned ${forecastRes.status}`)
 
     const w = await weatherRes.json()
     const f = await forecastRes.json()
@@ -171,7 +182,12 @@ export async function GET(request: NextRequest) {
     const data: WeatherData & { isMock: boolean } = { current, hourly, daily, isMock: false }
     return NextResponse.json(data, {
       headers: {
-        'Cache-Control': `public, s-maxage=${CACHE_SECONDS}, stale-while-revalidate=${CACHE_SECONDS}`,
+        // A city name is safe to hold in a shared cache. A lat/lon request carries the
+        // device's precise position in the URL, which is personal data, so it stays
+        // in the requesting browser only and never reaches a CDN or its access logs.
+        'Cache-Control': city
+          ? `public, s-maxage=${CACHE_SECONDS}, stale-while-revalidate=${CACHE_SECONDS}`
+          : `private, max-age=${CACHE_SECONDS}`,
       },
     })
 

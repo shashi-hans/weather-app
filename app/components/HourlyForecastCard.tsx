@@ -1,15 +1,22 @@
 'use client'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, ReferenceLine
+  CartesianGrid, Tooltip
 } from 'recharts'
 import type { HourlyForecast } from '../lib/weather'
-import { formatTemp, formatHour, getWeatherEmoji, slotsWithinHours, isDaytime } from '../lib/weather'
+import { formatTemp, formatHour, formatPop, getWeatherEmoji, slotsWithinHours, isDaytime } from '../lib/weather'
 
 /** Length of the hourly view. The live API returns 3-hour slots, so this is 8 of them. */
 const HOURS = 24
 
-type Props = { hourly: HourlyForecast[]; isNight: boolean; sunrise: number; sunset: number }
+type Props = {
+  hourly: HourlyForecast[]
+  isNight: boolean
+  sunrise: number
+  sunset: number
+  /** Seconds to add to a UTC timestamp to get the clock at the city being shown. */
+  timezone: number
+}
 
 function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
@@ -22,16 +29,16 @@ function CustomTooltip({ active, payload }: any) {
       <p className="font-bold">{d.time}</p>
       <p style={{ color: 'var(--accent)' }}>{formatTemp(d.temp)}</p>
       <p style={{ color: 'var(--text-muted)' }}>💧 {d.humidity}%</p>
-      <p style={{ color: 'var(--text-muted)' }}>🌧️ {Math.round(d.pop * 100)}%</p>
+      <p style={{ color: 'var(--text-muted)' }}>🌧️ {formatPop(d.pop)}</p>
     </div>
   )
 }
 
-export default function HourlyForecastCard({ hourly, isNight, sunrise, sunset }: Props) {
+export default function HourlyForecastCard({ hourly, isNight, sunrise, sunset, timezone }: Props) {
   const slots = slotsWithinHours(hourly, HOURS)
   const data = slots.map((h) => ({
     dt:       h.dt,
-    time:     formatHour(h.dt),
+    time:     formatHour(h.dt, timezone),
     temp:     Math.round(h.temp),
     humidity: h.humidity,
     pop:      h.pop,
@@ -40,7 +47,6 @@ export default function HourlyForecastCard({ hourly, isNight, sunrise, sunset }:
   }))
 
   const accent = isNight ? '#818cf8' : '#0ea5e9'
-  const accentLight = isNight ? 'rgba(129,140,248,0.15)' : 'rgba(14,165,233,0.15)'
 
   return (
     <div className="glass-card rounded-3xl p-5 animate-fadeInUp">
@@ -65,7 +71,7 @@ export default function HourlyForecastCard({ hourly, isNight, sunrise, sunset }:
             <span className="text-sm font-bold">{formatTemp(h.temp)}</span>
             {h.pop > 0.1 && (
               <span className="text-xs" style={{ color: i === 0 ? 'rgba(255,255,255,0.8)' : 'var(--accent)' }}>
-                💧{Math.round(h.pop * 100)}%
+                💧{formatPop(h.pop)}
               </span>
             )}
           </div>

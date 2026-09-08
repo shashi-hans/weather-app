@@ -3,6 +3,11 @@ import { getUVLabel, windDirection } from '../lib/weather'
 
 type Props = { weather: CurrentWeather }
 
+/** Holds a bar width inside 0..100, since CSS ignores a negative percentage. */
+function clampPct(value: number): number {
+  return Math.min(Math.max(value, 0), 100)
+}
+
 function WindCompass({ deg }: { deg: number }) {
   return (
     <div className="relative w-20 h-20 mx-auto">
@@ -88,7 +93,8 @@ export default function ExtraDetails({ weather }: Props) {
         <h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-muted)' }}>🌫️ Atmosphere</h4>
         <div className="space-y-3">
           {[
-            { label: 'Pressure',    value: `${weather.pressure} hPa`, icon: '🔽', pct: Math.min(((weather.pressure - 970) / 60) * 100, 100) },
+            // Clamped at both ends: a cyclone below 970 hPa would otherwise give a negative width.
+            { label: 'Pressure',    value: `${weather.pressure} hPa`, icon: '🔽', pct: clampPct(((weather.pressure - 970) / 60) * 100) },
             { label: 'Humidity',    value: `${weather.humidity}%`,    icon: '💧', pct: weather.humidity },
             { label: 'Visibility',  value: `${(weather.visibility/1000).toFixed(1)} km`, icon: '👁️', pct: Math.min((weather.visibility / 10000) * 100, 100) },
             { label: 'Cloud Cover', value: `${weather.clouds}%`,     icon: '☁️', pct: weather.clouds },

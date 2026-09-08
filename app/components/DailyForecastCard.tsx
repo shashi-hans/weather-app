@@ -1,11 +1,15 @@
 'use client'
 import { useState } from 'react'
 import type { DailyForecast } from '../lib/weather'
-import { formatTemp, formatDay, formatDate, getWeatherEmoji, getUVLabel } from '../lib/weather'
+import { formatTemp, formatDay, formatDate, formatPop, getWeatherEmoji, getUVLabel } from '../lib/weather'
 
-type Props = { daily: DailyForecast[] }
+type Props = {
+  daily: DailyForecast[]
+  /** Seconds to add to a UTC timestamp to get the clock at the city being shown. */
+  timezone: number
+}
 
-export default function DailyForecastCard({ daily }: Props) {
+export default function DailyForecastCard({ daily, timezone }: Props) {
   const [selected, setSelected] = useState(0)
   if (daily.length === 0) return null
   // A shorter forecast can leave the stored index past the end of the list.
@@ -36,7 +40,7 @@ export default function DailyForecastCard({ daily }: Props) {
               }
             >
               <span className="text-xs font-semibold" style={{ color: isActive ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>
-                {i === 0 ? 'Today' : formatDay(d.dt)}
+                {i === 0 ? 'Today' : formatDay(d.dt, timezone)}
               </span>
               <span className="text-xl">{emoji}</span>
               <span className="text-xs font-bold" style={{ color: isActive ? 'white' : 'var(--text-primary)' }}>
@@ -58,7 +62,7 @@ export default function DailyForecastCard({ daily }: Props) {
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="font-bold" style={{ color: 'var(--text-primary)' }}>
-              {index === 0 ? 'Today' : `${formatDay(sel.dt)}, ${formatDate(sel.dt)}`}
+              {index === 0 ? 'Today' : `${formatDay(sel.dt, timezone)}, ${formatDate(sel.dt, timezone)}`}
             </p>
             <p className="text-sm capitalize" style={{ color: 'var(--text-muted)' }}>
               {sel.condition.description}
@@ -70,7 +74,7 @@ export default function DailyForecastCard({ daily }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { icon: '🌡️', label: 'High / Low',  value: `${formatTemp(sel.temp_max)} / ${formatTemp(sel.temp_min)}` },
-            { icon: '🌧️', label: 'Rain Chance', value: `${Math.round(sel.pop * 100)}%` },
+            { icon: '🌧️', label: 'Rain Chance', value: formatPop(sel.pop) },
             { icon: '💧', label: 'Humidity',    value: `${sel.humidity}%` },
             { icon: '☀️', label: 'UV Index',    value: `${sel.uv_index.toFixed(1)} — ${uv.label}` },
           ].map((s) => (
