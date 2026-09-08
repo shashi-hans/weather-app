@@ -59,7 +59,7 @@ export default function WeatherApp() {
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-2xl">🌤️</span>
+            <span className="text-2xl">🌦️</span>
             <span className="text-xl font-extrabold" style={{ color: 'var(--accent)' }}>
               Weather Sky
             </span>
@@ -96,7 +96,6 @@ export default function WeatherApp() {
 
       {/* Main content */}
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-4 relative z-10">
-        {/* Sample-data notice. Shown in every build: without it, invented readings look live. */}
         {/* Sample-data notice, development builds only */}
         {process.env.NODE_ENV !== 'production' && data?.isMock && active?.status === 'success' && (
           <div
