@@ -22,6 +22,10 @@
   --sun-opacity:     1;
   --moon-opacity:    0;
   --dropdown-bg:     #f0f9ff;
+  --gradient-page:   radial-gradient(ellipse at top, #bae6fd 0%, #e0f2fe 60%);
+  --header-bg:       rgba(224,242,254,0.8);
+  --orb-primary:     #0ea5e9;
+  --orb-secondary:   #38bdf8;
 }
 
 /*
@@ -49,6 +53,10 @@
     --sun-opacity:     0;
     --moon-opacity:    1;
     --dropdown-bg:     #111827;
+    --gradient-page:   radial-gradient(ellipse at top, #1e1b4b 0%, #0a0f1e 60%);
+    --header-bg:       rgba(10,15,30,0.8);
+    --orb-primary:     #4f46e5;
+    --orb-secondary:   #7c3aed;
   }
   :root:not([data-theme="day"]) .toggle-track {
     background: linear-gradient(to right, #4f46e5, #7c3aed);
@@ -78,6 +86,10 @@
   --sun-opacity:     0;
   --moon-opacity:    1;
   --dropdown-bg:     #111827;
+  --gradient-page:   radial-gradient(ellipse at top, #1e1b4b 0%, #0a0f1e 60%);
+  --header-bg:       rgba(10,15,30,0.8);
+  --orb-primary:     #4f46e5;
+  --orb-secondary:   #7c3aed;
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────────── */

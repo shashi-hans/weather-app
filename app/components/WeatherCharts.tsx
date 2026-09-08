@@ -4,12 +4,18 @@ import {
   CartesianGrid, Tooltip
 } from 'recharts'
 import type { DailyForecast, HourlyForecast } from '../lib/weather'
-import { formatDay, formatTemp, slotsWithinHours } from '../lib/weather'
+import { formatDay, formatHour, formatTemp, slotsWithinHours } from '../lib/weather'
 
 /** Length of the humidity and rain view, matching the hourly forecast card. */
 const HUMIDITY_HOURS = 24
 
-type Props = { daily: DailyForecast[]; hourly: HourlyForecast[]; isNight: boolean }
+type Props = {
+  daily: DailyForecast[]
+  hourly: HourlyForecast[]
+  isNight: boolean
+  /** Seconds to add to a UTC timestamp to get the clock at the city being shown. */
+  timezone: number
+}
 
 function CustomBarTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -26,19 +32,19 @@ function CustomBarTooltip({ active, payload, label }: any) {
   )
 }
 
-export default function WeatherCharts({ daily, hourly, isNight }: Props) {
+export default function WeatherCharts({ daily, hourly, isNight, timezone }: Props) {
   const accent  = isNight ? '#818cf8' : '#0ea5e9'
   const accent2 = isNight ? '#c084fc' : '#38bdf8'
 
   const tempData = daily.map((d, i) => ({
-    day:      i === 0 ? 'Today' : formatDay(d.dt),
+    day:      i === 0 ? 'Today' : formatDay(d.dt, timezone),
     temp_max: Math.round(d.temp_max),
     temp_min: Math.round(d.temp_min),
   }))
 
   const humiditySlots = slotsWithinHours(hourly, HUMIDITY_HOURS)
   const humidityData = humiditySlots.map((h) => ({
-    time:     new Date(h.dt * 1000).getHours() + 'h',
+    time:     formatHour(h.dt, timezone),
     humidity: h.humidity,
     pop:      Math.round(h.pop * 100),
   }))

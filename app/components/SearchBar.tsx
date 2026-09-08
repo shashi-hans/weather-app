@@ -82,7 +82,10 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
               {POPULAR_CITIES.map((c) => (
                 <button
                   key={c}
-                  onMouseDown={() => { onSearch(c); setQuery(c); setFocused(false) }}
+                  type="button"
+                  // onClick, not onMouseDown, so keyboard and screen-reader activation work.
+                  // The blur close is on a timer, so the dropdown is still mounted when this fires.
+                  onClick={() => { onSearch(c); setQuery(c); setFocused(false) }}
                   className="text-xs px-3 py-1.5 rounded-full font-medium transition-all hover:scale-105"
                   style={{
                     background: 'var(--bg-glass)',

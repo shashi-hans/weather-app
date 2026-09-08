@@ -30,19 +30,21 @@ export default function WeatherApp() {
   return (
     <div
       className="min-h-screen transition-colors duration-500"
-      style={{ background: isNight
-        ? 'radial-gradient(ellipse at top, #1e1b4b 0%, #0a0f1e 60%)'
-        : 'radial-gradient(ellipse at top, #bae6fd 0%, #e0f2fe 60%)' }}
+      /*
+       * These colours come from CSS variables rather than the isNight state so the very first
+       * paint, which happens before the theme hook runs, already matches the system setting.
+       */
+      style={{ background: 'var(--gradient-page)' }}
     >
       {/* Decorative background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div
           className="absolute w-[600px] h-[600px] rounded-full opacity-10 blur-3xl animate-float"
-          style={{ top: '-200px', right: '-200px', background: isNight ? '#4f46e5' : '#0ea5e9' }}
+          style={{ top: '-200px', right: '-200px', background: 'var(--orb-primary)' }}
         />
         <div
           className="absolute w-[400px] h-[400px] rounded-full opacity-10 blur-3xl"
-          style={{ bottom: '-100px', left: '-100px', background: isNight ? '#7c3aed' : '#38bdf8', animationDelay: '2s' }}
+          style={{ bottom: '-100px', left: '-100px', background: 'var(--orb-secondary)', animationDelay: '2s' }}
         />
       </div>
 
@@ -50,7 +52,7 @@ export default function WeatherApp() {
       <header
         className="sticky top-0 z-50 border-b"
         style={{
-          background: isNight ? 'rgba(10,15,30,0.8)' : 'rgba(224,242,254,0.8)',
+          background: 'var(--header-bg)',
           borderColor: 'var(--border-glass)',
           backdropFilter: 'blur(20px)',
         }}
@@ -59,7 +61,7 @@ export default function WeatherApp() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-2xl">🌤️</span>
             <span className="text-xl font-extrabold" style={{ color: 'var(--accent)' }}>
-              WeatherNow
+              Weather Sky
             </span>
           </div>
 
@@ -94,6 +96,7 @@ export default function WeatherApp() {
 
       {/* Main content */}
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-4 relative z-10">
+        {/* Sample-data notice. Shown in every build: without it, invented readings look live. */}
         {/* Sample-data notice, development builds only */}
         {process.env.NODE_ENV !== 'production' && data?.isMock && active?.status === 'success' && (
           <div
@@ -137,9 +140,15 @@ export default function WeatherApp() {
               isNight={isNight}
               sunrise={data.current.sunrise}
               sunset={data.current.sunset}
+              timezone={data.current.timezone}
             />
-            <DailyForecastCard  daily={data.daily} />
-            <WeatherCharts      daily={data.daily} hourly={data.hourly} isNight={isNight} />
+            <DailyForecastCard  daily={data.daily} timezone={data.current.timezone} />
+            <WeatherCharts
+              daily={data.daily}
+              hourly={data.hourly}
+              isNight={isNight}
+              timezone={data.current.timezone}
+            />
             <ExtraDetails       weather={data.current} />
 
             <div className="text-center py-4 text-xs" style={{ color: 'var(--text-muted)' }}>

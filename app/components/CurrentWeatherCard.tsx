@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import type { CityEntry } from '../hooks/useCityWeather'
-import { formatTemp, formatTime, windDirection, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
+import { formatTemp, formatTime, formatPop, windDirection, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
 
 type Props = {
   entries: CityEntry[]
@@ -117,28 +117,48 @@ export default function CurrentWeatherCard({
   entries, activeIndex, isNight, onActiveChange, onAddCity, onRemoveCity, onRetry,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null)
+  // True while a programmatic scroll is animating. A smooth scroll fires scroll events for
+  // every card it passes, and reporting those as selections would retarget the animation.
+  const settling    = useRef(false)
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  useEffect(() => () => clearTimeout(settleTimer.current), [])
 
   // Keep the scroll position in step with the active card when it changes from outside,
-  // such as adding a city or clicking a dot.
+  // such as adding a city, removing one, or clicking a dot.
   useEffect(() => {
     const el = scroller.current
-    if (!el) return
+    if (!el || el.clientWidth === 0) return
     const target = activeIndex * el.clientWidth
-    if (Math.abs(el.scrollLeft - target) > 4) {
-      el.scrollTo({ left: target, behavior: 'smooth' })
-    }
-  }, [activeIndex])
+    if (Math.abs(el.scrollLeft - target) <= 4) return
+
+    settling.current = true
+    clearTimeout(settleTimer.current)
+    // Smooth scrolling reports no completion, so release the lock on a timer as well.
+    settleTimer.current = setTimeout(() => { settling.current = false }, 600)
+    el.scrollTo({ left: target, behavior: 'smooth' })
+  }, [activeIndex, entries.length])
 
   function handleScroll() {
     const el = scroller.current
     if (!el || el.clientWidth === 0) return
     const index = Math.round(el.scrollLeft / el.clientWidth)
+
+    if (settling.current) {
+      if (index === activeIndex) {
+        settling.current = false
+        clearTimeout(settleTimer.current)
+      }
+      return
+    }
     if (index !== activeIndex && index >= 0 && index < entries.length) onActiveChange(index)
   }
 
   const active  = entries[activeIndex] ?? entries[0]
   const weather = active?.data?.current
   const uv      = weather ? getUVLabel(weather.uv_index) : null
+  // Chance of rain in the nearest forecast slot, which is the next 3 hours on the live API.
+  const rainChance = formatPop(active?.data?.hourly?.[0]?.pop ?? 0)
 
   return (
     <div className="glass-card rounded-3xl overflow-hidden animate-fadeInUp">
@@ -185,12 +205,12 @@ export default function CurrentWeatherCard({
           <div className="grid grid-cols-3 gap-px"
             style={{ background: 'var(--border-glass)' }}>
             {[
-              { icon: '💧', label: 'Humidity',   value: `${weather.humidity}%` },
-              { icon: '💨', label: 'Wind',       value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
-              { icon: '🌡️', label: 'Pressure',   value: `${weather.pressure} hPa` },
-              { icon: '👁️', label: 'Visibility', value: `${(weather.visibility / 1000).toFixed(1)} km` },
-              { icon: '☀️', label: 'UV Index',   value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
-              { icon: '☁️', label: 'Cloud Cover', value: `${weather.clouds}%` },
+              { icon: '🌧️', label: 'Rain Chance', value: rainChance },
+              { icon: '☀️', label: 'UV Index',    value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
+              { icon: '💨', label: 'Wind',        value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
+              { icon: '💧', label: 'Humidity',    value: `${weather.humidity}%` },
+              { icon: '🌡️', label: 'Pressure',    value: `${weather.pressure} hPa` },
+              { icon: '👁️', label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },
             ].map((s) => (
               <div
                 key={s.label}
@@ -207,26 +227,26 @@ export default function CurrentWeatherCard({
             ))}
           </div>
 
-          <div className="flex items-center justify-around py-4 px-6">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🌅</span>
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Sunrise</p>
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {formatTime(weather.sunrise, weather.timezone)}
-                </p>
-              </div>
-            </div>
-            <div className="h-8 w-px" style={{ background: 'var(--border-glass)' }} />
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🌇</span>
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Sunset</p>
-                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {formatTime(weather.sunset, weather.timezone)}
-                </p>
-              </div>
-            </div>
+          {/* Sun times and cloud cover share the closing row */}
+          <div className="flex items-center justify-between py-4 px-3 gap-1">
+            {[
+              { icon: '🌅', label: 'Sunrise',     value: formatTime(weather.sunrise, weather.timezone) },
+              { icon: '🌇', label: 'Sunset',      value: formatTime(weather.sunset, weather.timezone) },
+              { icon: '☁️', label: 'Cloud Cover', value: `${weather.clouds}%` },
+            ].map((s, i) => (
+              <Fragment key={s.label}>
+                {i > 0 && <div className="h-8 w-px flex-shrink-0" style={{ background: 'var(--border-glass)' }} />}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xl flex-shrink-0">{s.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+                    <p className="font-bold text-sm whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
+                      {s.value}
+                    </p>
+                  </div>
+                </div>
+              </Fragment>
+            ))}
           </div>
         </>
       )}

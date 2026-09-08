@@ -21,7 +21,7 @@ export type CityEntry = {
   error?: string
 }
 
-export type AddResult = { ok: true; index: number } | { ok: false; reason: string }
+export type AddResult = { ok: true } | { ok: false; reason: string }
 
 function locationEntry(): CityEntry {
   return { key: LOCATION_KEY, label: 'Your location', removable: false, status: 'loading' }
@@ -34,6 +34,8 @@ export function useCityWeather() {
 
   const controllers = useRef(new Map<string, AbortController>())
   const mounted     = useRef(true)
+  /** Key of a card just added, so the carousel moves to it once it is in the list. */
+  const pendingKey  = useRef<string | null>(null)
 
   useEffect(() => {
     mounted.current = true
@@ -161,9 +163,10 @@ export function useCityWeather() {
         ...prev,
         { key, label: data.current.name, removable: true, status: 'success', data },
       ])
-      const index = entries.length
-      setActiveIndex(index)
-      return { ok: true, index }
+      // The position is resolved from the updated list rather than from the length captured
+      // before the lookup, which a removal during the lookup would have made wrong.
+      pendingKey.current = key
+      return { ok: true }
     },
     [entries]
   )
@@ -171,12 +174,23 @@ export function useCityWeather() {
   const removeCity = useCallback((key: string) => {
     controllers.current.get(key)?.abort()
     controllers.current.delete(key)
-    setEntries((prev) => {
-      const next = prev.filter((e) => e.key !== key || !e.removable)
-      setActiveIndex((i) => Math.min(i, Math.max(next.length - 1, 0)))
-      return next
-    })
+    setEntries((prev) => prev.filter((e) => e.key !== key || !e.removable))
   }, [])
+
+  // Keep the active card inside the list. This lives in an effect rather than in the
+  // removeCity updater, because a state updater must be pure.
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, Math.max(entries.length - 1, 0)))
+  }, [entries.length])
+
+  // Move to a card added by addCity, once the appended list has rendered.
+  useEffect(() => {
+    if (!pendingKey.current) return
+    const index = entries.findIndex((e) => e.key === pendingKey.current)
+    if (index === -1) return
+    pendingKey.current = null
+    setActiveIndex(index)
+  }, [entries])
 
   const retry = useCallback(
     (entry: CityEntry) => {

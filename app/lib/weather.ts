@@ -63,21 +63,35 @@ export function formatTemp(t: number): string {
   return `${Math.round(t)}°`
 }
 
+/**
+ * Shifts a UTC timestamp by the location's offset in seconds and reads it back as UTC,
+ * so every formatter below renders the clock at the location rather than on the device.
+ */
+function atLocation(unix: number, offset: number): Date {
+  return new Date((unix + offset) * 1000)
+}
+
 export function formatTime(unix: number, offset = 0): string {
-  const d = new Date((unix + offset) * 1000)
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })
+  return atLocation(unix, offset)
+    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })
 }
 
-export function formatDay(unix: number): string {
-  return new Date(unix * 1000).toLocaleDateString('en-US', { weekday: 'short' })
+export function formatDay(unix: number, offset = 0): string {
+  return atLocation(unix, offset).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
 }
 
-export function formatDate(unix: number): string {
-  return new Date(unix * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export function formatDate(unix: number, offset = 0): string {
+  return atLocation(unix, offset)
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
-export function formatHour(unix: number): string {
-  return new Date(unix * 1000).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+export function formatHour(unix: number, offset = 0): string {
+  return atLocation(unix, offset).toLocaleTimeString('en-US', { hour: 'numeric', hour12: true, timeZone: 'UTC' })
+}
+
+/** Probability of precipitation, given as 0..1, rendered as a whole-percent string. */
+export function formatPop(pop: number): string {
+  return `${Math.round(pop * 100)}%`
 }
 
 export function windDirection(deg: number): string {
