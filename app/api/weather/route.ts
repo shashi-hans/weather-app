@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { WeatherData, CurrentWeather, HourlyForecast, DailyForecast } from '@/app/lib/weather'
-import { getMockWeatherData } from '@/app/lib/weather'
+import { getMockWeatherData, isDaytime } from '@/app/lib/weather'
 
 const API_KEY = process.env.OPENWEATHER_API_KEY ?? ''
 const BASE    = 'https://api.openweathermap.org'
@@ -128,6 +128,16 @@ export async function GET(request: NextRequest) {
       dt:          w.dt,
       timezone:    w.timezone ?? 0,
       condition:   w.weather[0],
+    }
+
+    /*
+     * /data/2.5/uvi is retired and answers with the day's peak rather than the value
+     * for right now, which reported "Extreme" an hour after sunset. There is no UV
+     * after dark, so the current reading is zeroed outside the location's daylight.
+     * The daily entries keep the peak, which is what a daily UV figure means.
+     */
+    if (!isDaytime(current.dt, current.sunrise, current.sunset)) {
+      current.uv_index = 0
     }
 
     // Forecast slots are 3 hours apart, so 24 items cover 72 hours.
