@@ -1,7 +1,9 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { POPULAR_CITIES } from '../lib/cities'
 
-const POPULAR = ['New York', 'London', 'Tokyo', 'Paris', 'Dubai', 'Sydney', 'Mumbai', 'Toronto']
+/** Delay before hiding the suggestions, so a click on a suggestion registers before blur closes it. */
+const BLUR_CLOSE_DELAY_MS = 150
 
 type Props = {
   onSearch: (city: string) => void
@@ -13,6 +15,14 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
   const [query, setQuery]       = useState('')
   const [focused, setFocused]   = useState(false)
   const inputRef                = useRef<HTMLInputElement>(null)
+  const blurTimer               = useRef<ReturnType<typeof setTimeout>>()
+
+  useEffect(() => () => clearTimeout(blurTimer.current), [])
+
+  function handleBlur() {
+    clearTimeout(blurTimer.current)
+    blurTimer.current = setTimeout(() => setFocused(false), BLUR_CLOSE_DELAY_MS)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +41,7 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            onBlur={handleBlur}
             placeholder="Search city..."
             className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-medium outline-none transition-all"
             style={{
@@ -69,7 +79,7 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
               Popular Cities
             </p>
             <div className="flex flex-wrap gap-2">
-              {POPULAR.map((c) => (
+              {POPULAR_CITIES.map((c) => (
                 <button
                   key={c}
                   onMouseDown={() => { onSearch(c); setQuery(c); setFocused(false) }}

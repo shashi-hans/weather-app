@@ -1,8 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useWeather } from './hooks/useWeather'
+import { useState } from 'react'
+import { useCityWeather } from './hooks/useCityWeather'
+import { useTheme } from './hooks/useTheme'
 import DayNightToggle from './components/DayNightToggle'
 import SearchBar from './components/SearchBar'
+import AddCityDialog from './components/AddCityDialog'
 import CurrentWeatherCard from './components/CurrentWeatherCard'
 import HourlyForecastCard from './components/HourlyForecastCard'
 import DailyForecastCard from './components/DailyForecastCard'
@@ -11,26 +13,19 @@ import ExtraDetails from './components/ExtraDetails'
 import WeatherSkeleton from './components/WeatherSkeleton'
 
 export default function WeatherApp() {
-  const [isNight, setIsNight] = useState(false)
-  const { data, status, error, fetchByLocation, fetchByCity } = useWeather()
+  const { isNight, pinned, toggle, followSystem } = useTheme()
+  const { entries, activeIndex, setActiveIndex, addCity, removeCity, retry } = useCityWeather()
+  const [adding, setAdding] = useState(false)
+  const [searchNotice, setSearchNotice] = useState('')
 
-  // Auto-detect theme from system time
-  useEffect(() => {
-    const hour = new Date().getHours()
-    setIsNight(hour < 6 || hour >= 20)
-  }, [])
+  async function searchCity(city: string) {
+    setSearchNotice('')
+    const result = await addCity(city)
+    if (!result.ok) setSearchNotice(result.reason)
+  }
 
-  // Apply theme to document
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isNight ? 'night' : 'day')
-  }, [isNight])
-
-  // Load weather on mount
-  useEffect(() => {
-    fetchByLocation()
-  }, [])
-
-  const loading = status === 'idle' || status === 'locating' || status === 'loading'
+  const active = entries[activeIndex] ?? entries[0]
+  const data   = active?.data
 
   return (
     <div
@@ -40,24 +35,14 @@ export default function WeatherApp() {
         : 'radial-gradient(ellipse at top, #bae6fd 0%, #e0f2fe 60%)' }}
     >
       {/* Decorative background orbs */}
-      <div
-        className="fixed inset-0 overflow-hidden pointer-events-none"
-        aria-hidden="true"
-      >
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div
           className="absolute w-[600px] h-[600px] rounded-full opacity-10 blur-3xl animate-float"
-          style={{
-            top: '-200px', right: '-200px',
-            background: isNight ? '#4f46e5' : '#0ea5e9',
-          }}
+          style={{ top: '-200px', right: '-200px', background: isNight ? '#4f46e5' : '#0ea5e9' }}
         />
         <div
           className="absolute w-[400px] h-[400px] rounded-full opacity-10 blur-3xl"
-          style={{
-            bottom: '-100px', left: '-100px',
-            background: isNight ? '#7c3aed' : '#38bdf8',
-            animationDelay: '2s',
-          }}
+          style={{ bottom: '-100px', left: '-100px', background: isNight ? '#7c3aed' : '#38bdf8', animationDelay: '2s' }}
         />
       </div>
 
@@ -71,7 +56,6 @@ export default function WeatherApp() {
         }}
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
-          {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-2xl">🌤️</span>
             <span className="text-xl font-extrabold" style={{ color: 'var(--accent)' }}>
@@ -79,26 +63,39 @@ export default function WeatherApp() {
             </span>
           </div>
 
-          {/* Toggle — right of logo */}
-          <div className="flex-shrink-0 ml-auto">
-            <DayNightToggle isNight={isNight} toggle={() => setIsNight((n) => !n)} />
+          <div className="flex-shrink-0 ml-auto flex items-center gap-3">
+            {pinned && (
+              <button
+                onClick={followSystem}
+                className="text-xs font-semibold underline"
+                style={{ color: 'var(--text-muted)' }}
+                title="Go back to following the system light/dark setting"
+              >
+                Use system
+              </button>
+            )}
+            <DayNightToggle isNight={isNight} toggle={toggle} />
           </div>
 
-          {/* Search — always on its own row */}
           <div className="w-full">
             <SearchBar
-              onSearch={fetchByCity}
-              onLocate={fetchByLocation}
-              loading={loading}
+              onSearch={(city) => { void searchCity(city) }}
+              onLocate={() => { setSearchNotice(''); if (entries[0]) retry(entries[0]) }}
+              loading={entries[0]?.status === 'loading'}
             />
+            {searchNotice && (
+              <p className="text-xs font-medium mt-2 px-1" style={{ color: '#f87171' }}>
+                {searchNotice}
+              </p>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main content */}
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-4 relative z-10">
-        {/* Mock data notice */}
-        {data?.isMock && status === 'success' && (
+        {/* Sample-data notice, development builds only */}
+        {process.env.NODE_ENV !== 'production' && data?.isMock && active?.status === 'success' && (
           <div
             className="rounded-2xl px-4 py-3 text-sm flex items-center gap-3"
             style={{
@@ -119,39 +116,32 @@ export default function WeatherApp() {
           </div>
         )}
 
-        {/* Loading */}
-        {loading && <WeatherSkeleton />}
+        {/* Blue city carousel plus the white detail strip for the visible city */}
+        <CurrentWeatherCard
+          entries={entries}
+          activeIndex={activeIndex}
+          isNight={isNight}
+          onActiveChange={setActiveIndex}
+          onAddCity={() => setAdding(true)}
+          onRemoveCity={removeCity}
+          onRetry={retry}
+        />
 
-        {/* Error */}
-        {status === 'error' && (
-          <div
-            className="glass-card rounded-3xl p-10 text-center"
-          >
-            <div className="text-6xl mb-4">⛈️</div>
-            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-              Could not load weather
-            </h2>
-            <p className="mb-6" style={{ color: 'var(--text-muted)' }}>{error}</p>
-            <button
-              onClick={() => fetchByLocation()}
-              className="px-6 py-2.5 rounded-2xl font-semibold text-white transition-all hover:scale-105"
-              style={{ background: 'var(--accent)' }}
-            >
-              Try Again
-            </button>
-          </div>
-        )}
+        {/* Everything below follows the city currently shown in the carousel */}
+        {active?.status === 'loading' && <WeatherSkeleton />}
 
-        {/* Weather content */}
-        {status === 'success' && data && (
+        {active?.status === 'success' && data && (
           <>
-            <CurrentWeatherCard weather={data.current} isNight={isNight} />
-            <HourlyForecastCard hourly={data.hourly} isNight={isNight} />
-            <DailyForecastCard  daily={data.daily}  isNight={isNight} />
+            <HourlyForecastCard
+              hourly={data.hourly}
+              isNight={isNight}
+              sunrise={data.current.sunrise}
+              sunset={data.current.sunset}
+            />
+            <DailyForecastCard  daily={data.daily} />
             <WeatherCharts      daily={data.daily} hourly={data.hourly} isNight={isNight} />
             <ExtraDetails       weather={data.current} />
 
-            {/* Footer */}
             <div className="text-center py-4 text-xs" style={{ color: 'var(--text-muted)' }}>
               Last updated: {new Date(data.current.dt * 1000).toLocaleTimeString()}
               {' · '}
@@ -160,27 +150,11 @@ export default function WeatherApp() {
             </div>
           </>
         )}
-
-        {/* Welcome state */}
-        {status === 'idle' && (
-          <div className="glass-card rounded-3xl p-16 text-center">
-            <div className="text-8xl mb-6 animate-float">🌤️</div>
-            <h2 className="text-3xl font-extrabold mb-3" style={{ color: 'var(--text-primary)' }}>
-              Welcome to WeatherNow
-            </h2>
-            <p className="mb-8 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
-              Allow location access or search for any city to get started
-            </p>
-            <button
-              onClick={fetchByLocation}
-              className="px-8 py-3 rounded-2xl font-bold text-white text-lg transition-all hover:scale-105 shadow-lg"
-              style={{ background: 'var(--accent)' }}
-            >
-              📍 Use My Location
-            </button>
-          </div>
-        )}
       </main>
+
+      {adding && (
+        <AddCityDialog onAdd={addCity} onClose={() => setAdding(false)} />
+      )}
     </div>
   )
 }

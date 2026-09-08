@@ -3,24 +3,27 @@ import { useState } from 'react'
 import type { DailyForecast } from '../lib/weather'
 import { formatTemp, formatDay, formatDate, getWeatherEmoji, getUVLabel } from '../lib/weather'
 
-type Props = { daily: DailyForecast[]; isNight: boolean }
+type Props = { daily: DailyForecast[] }
 
-export default function DailyForecastCard({ daily, isNight }: Props) {
+export default function DailyForecastCard({ daily }: Props) {
   const [selected, setSelected] = useState(0)
-  const sel = daily[selected]
-  const uv  = getUVLabel(sel.uv_index)
+  if (daily.length === 0) return null
+  // A shorter forecast can leave the stored index past the end of the list.
+  const index = Math.min(selected, daily.length - 1)
+  const sel = daily[index]
+  const uv = getUVLabel(sel.uv_index)
 
   return (
     <div className="glass-card rounded-3xl p-5 animate-fadeInUp">
       <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
-        📅 7-Day Forecast
+        📅 {daily.length}-Day Forecast
       </h3>
 
       {/* Day pills */}
       <div className="forecast-grid mb-5">
         {daily.map((d, i) => {
-          const emoji = getWeatherEmoji(d.condition.id, !isNight)
-          const isActive = i === selected
+          const emoji = getWeatherEmoji(d.condition.id, true)
+          const isActive = i === index
           return (
             <button
               key={d.dt}
@@ -55,13 +58,13 @@ export default function DailyForecastCard({ daily, isNight }: Props) {
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="font-bold" style={{ color: 'var(--text-primary)' }}>
-              {selected === 0 ? 'Today' : `${formatDay(sel.dt)}, ${formatDate(sel.dt)}`}
+              {index === 0 ? 'Today' : `${formatDay(sel.dt)}, ${formatDate(sel.dt)}`}
             </p>
             <p className="text-sm capitalize" style={{ color: 'var(--text-muted)' }}>
               {sel.condition.description}
             </p>
           </div>
-          <span className="text-5xl">{getWeatherEmoji(sel.condition.id, !isNight)}</span>
+          <span className="text-5xl">{getWeatherEmoji(sel.condition.id, true)}</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
