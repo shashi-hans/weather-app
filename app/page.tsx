@@ -59,7 +59,7 @@ export default function WeatherApp() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-2xl">🌤️</span>
             <span className="text-xl font-extrabold" style={{ color: 'var(--accent)' }}>
-              WeatherNow
+              Weather Sky
             </span>
           </div>
 

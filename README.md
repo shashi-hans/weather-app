@@ -1,4 +1,4 @@
-# 🌤️ WeatherNow — Beautiful Weather App
+# 🌤️ Weather Sky — Beautiful Weather App
 
 A stunning weather application built with **Next.js 14**, **React**, **Recharts**, and **Tailwind CSS**.
 

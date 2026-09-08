@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">WeatherNow</string>
-    <string name="title_activity_main">WeatherNow</string>
+    <string name="app_name">Weather Sky</string>
+    <string name="title_activity_main">Weather Sky</string>
     <string name="package_name">in.coverstack.weathernow</string>
     <string name="custom_url_scheme">in.coverstack.weathernow</string>
 </resources>
