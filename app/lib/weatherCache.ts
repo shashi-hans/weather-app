@@ -10,7 +10,13 @@ import type { WeatherData } from './weather'
 const STORAGE_KEY = 'weathernow.cache'
 
 /** Cached readings older than this are treated as too stale to show. */
-export const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000
+export const MAX_CACHE_AGE_MS = 12 * 60 * 60 * 1000
+
+/**
+ * A stored reading younger than this is used as-is on start-up and no request is
+ * made. Current conditions drift within the hour, so this stays short.
+ */
+export const FRESH_MS = 10 * 60 * 1000
 
 export type CachedWeather = {
   savedAt: number
@@ -47,6 +53,11 @@ export function loadCached(key: string): CachedWeather | null {
   if (!entry?.data?.current || typeof entry.savedAt !== 'number') return null
   if (Date.now() - entry.savedAt > MAX_CACHE_AGE_MS) return null
   return entry
+}
+
+/** True while a stored reading is new enough to show without asking again. */
+export function isFresh(savedAt: number): boolean {
+  return Date.now() - savedAt < FRESH_MS
 }
 
 export function saveCached(key: string, data: WeatherData & { isMock?: boolean }): void {

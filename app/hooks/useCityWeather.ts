@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WeatherData } from '../lib/weather'
 import { loadCities, saveCities, newCityKey, sameCity, MAX_SAVED_CITIES } from '../lib/cities'
-import { loadCached, saveCached, removeCached, pruneCache } from '../lib/weatherCache'
+import { loadCached, saveCached, removeCached, pruneCache, isFresh } from '../lib/weatherCache'
 
 /** Key of the first card, which always tracks the device location. It cannot be removed. */
 export const LOCATION_KEY = 'current-location'
@@ -34,13 +34,15 @@ export type AddResult = { ok: true } | { ok: false; reason: string }
 function entryFor(key: string, label: string, removable: boolean): CityEntry {
   const cached = loadCached(key)
   if (!cached) return { key, label, removable, status: 'loading' }
+  // cachedAt stays unset here. It marks a reading standing in for a failed refresh,
+  // and a refresh has not been attempted yet, so setting it would show the offline
+  // note on a card that is about to update normally.
   return {
     key,
     label: cached.data.current.name || label,
     removable,
     status: 'success',
     data: cached.data,
-    cachedAt: cached.savedAt,
   }
 }
 
@@ -139,8 +141,16 @@ export function useCityWeather() {
     ])
     setRestored(true)
 
-    loadLocation()
-    saved.forEach((c) => void load(c.key, `city=${encodeURIComponent(c.name)}`))
+    // A reading stored minutes ago is shown as it is, so start-up makes no request for it.
+    const stale = (key: string) => {
+      const held = loadCached(key)
+      return !held || !isFresh(held.savedAt)
+    }
+
+    if (stale(LOCATION_KEY)) loadLocation()
+    saved
+      .filter((c) => stale(c.key))
+      .forEach((c) => void load(c.key, `city=${encodeURIComponent(c.name)}`))
   }, [load, loadLocation])
 
   // Drop stored readings for cards that no longer exist.
