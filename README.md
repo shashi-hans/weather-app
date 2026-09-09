@@ -54,8 +54,31 @@ npm start
 | Recharts | Temperature & humidity charts |
 | Tailwind CSS | Utility styling |
 | CSS Variables | Day/Night theming |
-| OpenWeatherMap | Weather data (`/data/2.5/weather`, `/forecast`, `/uvi`) |
+| Open-Meteo | Primary weather source. No API key, one call for current, hourly and daily |
+| Nominatim / BigDataCloud | Coordinates to city name, which Open-Meteo does not return |
+| OpenWeatherMap | Stand-in when Open-Meteo cannot answer (`/data/2.5/weather`, `/forecast`, `/uvi`) |
 | Capacitor 6 | Android WebView shell in `android-shell/` |
+
+## 🔌 Weather sources
+
+Requests go to the first source that answers:
+
+1. **Open-Meteo** — no key, no card, no signup. One call returns current, hourly and daily including the UV index. Hourly is true 1-hour resolution and daily runs to 7 days.
+2. **OpenWeatherMap** — used only when Open-Meteo fails. Needs `OPENWEATHER_API_KEY`. Its forecast arrives in 3-hour slots covering 5 days.
+
+A source that reports a quota or rate limit is skipped for 15 minutes rather than retried on every request. If none can answer and no key is set, sample data is served instead.
+
+Open-Meteo returns no place name, so coordinate lookups get one from **Nominatim**, falling back to **BigDataCloud**. Both are keyless. Nominatim asks for a `User-Agent` and one call per second, which is why this runs server-side; place names are cached for 24 hours.
+
+Responses carry `X-Weather-Provider` and `X-Weather-Cache` headers so you can see which source answered and whether it was stored.
+
+### Caching
+
+| Layer | Lifetime | Purpose |
+|---|---|---|
+| Server, in-process | 10 min | Reuses an answer across requests. Best-effort on serverless, where instances are recycled. |
+| CDN / browser | 5 min | `public` for city lookups; `private` for lat/lon, which carries device coordinates. |
+| Browser `localStorage` | 12 h | Offline fallback. A reading under 10 minutes old is shown on start-up with no request at all. |
 
 ## 📁 Project Structure
 
@@ -78,7 +101,9 @@ app/
 ├── lib/
 │   ├── weather.ts          ← Types, utilities, mock data
 │   ├── cities.ts           ← localStorage for the saved city list
-│   └── weatherCache.ts     ← last reading per card, for offline
+│   ├── weatherCache.ts     ← last reading per card, for offline
+│   ├── serverCache.ts      ← server TTL cache + provider cooldowns
+│   └── providers/          ← Open-Meteo, OpenWeatherMap, geocoders, WMO mapping
 ├── globals.css             ← Day/night CSS variables + animations
 ├── layout.tsx
 └── page.tsx                ← Main orchestrator
