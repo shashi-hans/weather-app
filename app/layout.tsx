@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Weather Sky — Beautiful Weather App',
+  title: 'Weather Sky',
   description: 'Real-time weather with a multi-day forecast, hourly data, charts and location detection.',
 }
 

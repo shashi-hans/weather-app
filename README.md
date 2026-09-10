@@ -1,6 +1,6 @@
-# 🌤️ Weather Sky — Beautiful Weather App
+# 🌤️ Weather Sky
 
-A stunning weather application built with **Next.js 14**, **React**, **Recharts**, and **Tailwind CSS**.
+Weather Sky is built with **Next.js 14**, **React**, **Recharts**, and **Tailwind CSS**.
 
 ## ✨ Features
 
