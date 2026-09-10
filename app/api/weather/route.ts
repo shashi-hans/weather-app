@@ -43,8 +43,39 @@ function parseCoord(value: string | null, limit: number): number | null {
   return n
 }
 
+/*
+ * The packaged Android app runs on its own origin (https://localhost) and calls this
+ * route as its fallback, so the response must be readable cross-origin. The data is
+ * public and no cookies or credentials are involved, so any origin may read it.
+ */
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
+/**
+ * Decimal places kept on a coordinate before it is sent to any outside service.
+ * Two places is about 1.1 km: enough for an accurate forecast, while the reader's
+ * exact position never leaves this backend.
+ */
+const UPSTREAM_COORD_PRECISION = 2
+
+function coarsen(query: WeatherQuery): WeatherQuery {
+  if (query.kind !== 'coords') return query
+  return {
+    kind: 'coords',
+    lat: Number(query.lat.toFixed(UPSTREAM_COORD_PRECISION)),
+    lon: Number(query.lon.toFixed(UPSTREAM_COORD_PRECISION)),
+  }
+}
+
 function badRequest(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 })
+  return NextResponse.json({ error: message }, { status: 400, headers: CORS_HEADERS })
 }
 
 /** Walks the chain, returning the first answer. */
@@ -59,19 +90,21 @@ async function fetchFromChain(query: WeatherQuery, signal: AbortSignal): Promise
     try {
       return { data: await provider.fetchWeather(query, signal), provider: provider.id }
     } catch (err) {
-      lastError = err
+      console.warn(`Weather via ${provider.id} failed:`, err instanceof Error ? err.message : err)
       if (err instanceof ProviderError) {
-        // A name no provider can resolve is the caller's problem, so stop here.
-        if (err.notFound) { notFound = true; break }
+        // Gazetteers differ, so a name one provider cannot place may still be known
+        // to the next. The 404 is only reported once the chain agrees.
+        if (err.notFound) { notFound = true; continue }
         if (err.exhausted) markExhausted(provider.id, COOLDOWN_MS)
       }
-      console.warn(`Weather via ${provider.id} failed:`, err instanceof Error ? err.message : err)
+      lastError = err
     }
   }
 
-  if (notFound) throw new ProviderError('Location not found', { notFound: true })
   if (tried === 0) throw new ProviderError('No weather provider is available right now')
-  throw lastError instanceof Error ? lastError : new ProviderError('Every weather provider failed')
+  if (lastError) throw lastError instanceof Error ? lastError : new ProviderError('Every weather provider failed')
+  if (notFound) throw new ProviderError('Location not found', { notFound: true })
+  throw new ProviderError('Every weather provider failed')
 }
 
 export async function GET(request: NextRequest) {
@@ -95,11 +128,6 @@ export async function GET(request: NextRequest) {
 
   if (!query) return badRequest('Provide lat/lon or city')
 
-  // Every provider needs a key except Open-Meteo, so sample data is only a last resort.
-  if (!PROVIDERS.some((p) => p.isConfigured())) {
-    return NextResponse.json({ ...getMockWeatherData(city || 'New York'), isMock: true })
-  }
-
   const key = queryKey(query)
   const cached = cacheGet<Answer>(key)
 
@@ -107,21 +135,24 @@ export async function GET(request: NextRequest) {
   const budget = setTimeout(() => controller.abort(), REQUEST_BUDGET_MS)
 
   try {
-    const answer = cached ?? (await fetchFromChain(query, controller.signal))
+    const answer = cached ?? (await fetchFromChain(coarsen(query), controller.signal))
     if (!cached) cacheSet(key, answer, CACHE_TTL_MS)
 
     /*
      * The UV feeds report a daily peak rather than the value for the moment asked
      * about, which read as Extreme after sunset. There is no UV after dark.
      * The daily entries keep the peak, which is what a daily UV figure means.
+     * A copy is built rather than an edit in place, because `answer` is the object
+     * held in the store and the next reader of it may be asking in daylight.
      */
-    const data = answer.data
-    if (!isDaytime(data.current.dt, data.current.sunrise, data.current.sunset)) {
-      data.current = { ...data.current, uv_index: 0 }
-    }
+    const stored = answer.data
+    const current = isDaytime(stored.current.dt, stored.current.sunrise, stored.current.sunset)
+      ? stored.current
+      : { ...stored.current, uv_index: 0 }
 
-    return NextResponse.json({ ...data, isMock: false }, {
+    return NextResponse.json({ ...stored, current, isMock: false }, {
       headers: {
+        ...CORS_HEADERS,
         // A city name is safe to hold in a shared cache. A lat/lon request carries the
         // device's precise position in the URL, which is personal data, so it stays
         // in the requesting browser only and never reaches a CDN or its access logs.
@@ -134,15 +165,22 @@ export async function GET(request: NextRequest) {
     })
   } catch (err) {
     if (err instanceof ProviderError && err.notFound) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Location not found' }, { status: 404, headers: CORS_HEADERS })
     }
     // Log the detail server-side; the client gets a generic message so upstream
     // URLs and keys cannot leak.
     console.error('Weather API error:', err instanceof Error ? err.message : err)
+
+    // Nothing left to try when the only keyed provider has no key, so sample data
+    // keeps the app usable instead of an error screen.
+    if (!openWeather.isConfigured()) {
+      return NextResponse.json({ ...getMockWeatherData(city || 'New York'), isMock: true }, { headers: CORS_HEADERS })
+    }
+
     const timedOut = controller.signal.aborted || (err instanceof Error && err.name === 'TimeoutError')
     return NextResponse.json(
       { error: timedOut ? 'Weather service timed out' : 'Could not load weather right now' },
-      { status: timedOut ? 504 : 502 }
+      { status: timedOut ? 504 : 502, headers: CORS_HEADERS }
     )
   } finally {
     clearTimeout(budget)
