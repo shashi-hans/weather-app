@@ -6,14 +6,14 @@ A stunning weather application built with **Next.js 14**, **React**, **Recharts*
 
 - 🌡️ **Current conditions** — temperature, feels like, then a readings strip of rain chance, UV index, wind, humidity, pressure and visibility, with sunrise, sunset and cloud cover below it
 - ⏰ **24-hour forecast** — scrollable cards + interactive area chart. Slots are selected by timestamp rather than by count, so the heading matches the data on the free plan's 3-hour slots.
-- 📅 **Multi-day forecast** — clickable day selector with detailed breakdown. The heading counts the days actually returned: the free plan's 40 three-hour slots cover 120 hours, which lands in 5 or 6 local calendar days depending on the time of the request, and demo mode always returns 7.
+- 📅 **Multi-day forecast** — clickable day selector with detailed breakdown. The heading counts the days actually returned: 7 from Open-Meteo and from demo mode, while OpenWeatherMap's 40 three-hour slots cover 120 hours, which lands in 5 or 6 local calendar days depending on the time of the request. The first day is located by timestamp, because Open-Meteo can still open its daily block on the previous local day just after midnight east of UTC.
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)
 - 💨 **Wind compass** — visual direction indicator
 - ☀️ **UV Index bar** — color-coded severity scale
 - 🌙 **Day/Night theme** — follows the operating system's light/dark setting on desktop and Android, and reacts if the system flips while the app is open. The toggle pins a choice that survives restarts; "Use system" clears it.
 - 📍 **Location detection** — the first card always tracks device GPS, falling back to a city search when location is denied
 - 🏙️ **Multiple cities** — "+" beside the city name adds a city; the blue hero scrolls horizontally with snap, and the hourly, daily, chart and detail sections follow whichever city is visible. Up to 8 saved cities, kept in `localStorage` on the device and never sent anywhere.
-- 📶 **Works through a dropout** — each successful reading is stored in `localStorage` for 24 hours. If a refresh fails, the card keeps showing the stored reading with an "Offline — saved reading from ..." note instead of an error. This covers losing the connection while the app is open; a cold start still needs the network, because the page itself is served from it (a service worker would be required for full offline).
+- 📶 **Works through a dropout** — each successful reading is stored in `localStorage` for 12 hours. If a refresh fails, the card keeps showing the stored reading with an "Offline — saved reading from ..." note instead of an error. This covers losing the connection while the app is open; a cold start still needs the network, because the page itself is served from it (a service worker would be required for full offline).
 - 📱 **Fully responsive** — laptop, desktop, tablet, mobile
 - 🎭 **Demo mode** — works without an API key using realistic mock data
 
@@ -68,6 +68,14 @@ Requests go to the first source that answers:
 
 A source that reports a quota or rate limit is skipped for 15 minutes rather than retried on every request. If none can answer and no key is set, sample data is served instead.
 
+### Where requests go
+
+Nothing calls a weather or geocoding service straight from a device. The web app and the Android app both talk only to `/api/weather`, which `vercel.json` pins to the Mumbai region (`bom1`), so a reader's coordinates are received and processed in India.
+
+Coordinates are rounded to two decimal places, about 1 km, before any upstream call, so an exact position never leaves the backend. The rounded value still reaches Open-Meteo in Germany, which is the residual flow the privacy policy states. Removing it entirely would mean dropping foreign weather sources.
+
+The route sends permissive CORS headers because the packaged app calls it from its own origin (`https://localhost`). **Deploy the backend before shipping an APK build**: without those headers the app cannot read the response.
+
 Open-Meteo returns no place name, so coordinate lookups get one from **Nominatim**, falling back to **BigDataCloud**. Both are keyless. Nominatim asks for a `User-Agent` and one call per second, which is why this runs server-side; place names are cached for 24 hours.
 
 Responses carry `X-Weather-Provider` and `X-Weather-Cache` headers so you can see which source answered and whether it was stored.
@@ -111,16 +119,30 @@ app/
 
 ## 📱 Android APK
 
-`android-shell/` holds a Capacitor project that wraps the deployed site in a native WebView. The app has no bundled UI: it loads the URL in `android-shell/capacitor.config.json` (`server.url`), so it needs a network connection and it shows whatever is currently deployed. The `www/index.html` page is only the offline placeholder.
+`android-shell/` holds a Capacitor project. The interface is exported as static files and bundled inside the APK, so the app opens without a network and shows its stored reading when offline. It calls the hosted backend only for weather data.
 
-Rebuild after changing the URL:
+Build the bundle and sync it into the Android project:
 
 \`\`\`bash
-cd android-shell
-npx cap sync android
-cd android
-ANDROID_SDK_ROOT=<path-to-android-sdk> ./gradlew assembleDebug
+npm run build:android
 \`\`\`
+
+That script exports the site, copies it to `out/`, and runs `npx cap sync android`. A static export cannot contain a request-driven route handler, so `app/api` is moved aside during the export and restored afterwards, including on failure or Ctrl-C.
+
+Point the app at a different backend with `WEATHER_API_BASE=https://example.com npm run build:android`.
+
+### Release signing
+
+Release builds read `android-shell/android/keystore.properties`, which is gitignored. Copy `keystore.properties.example`, then create the keystore:
+
+\`\`\`bash
+cd android-shell/android
+keytool -genkeypair -v -keystore weather-sky-release.jks \\
+  -keyalg RSA -keysize 2048 -validity 10000 -alias weather-sky
+./gradlew assembleRelease
+\`\`\`
+
+Losing that file or its passwords means the app can never be updated on Play under the same listing. Back it up outside the repo. Without `keystore.properties` the release build still compiles, just unsigned.
 
 The APK lands in `android-shell/android/app/build/outputs/apk/debug/app-debug.apk`.
 

@@ -11,3 +11,6 @@ android/app/src/main/assets/capacitor.plugins.json
 *.aab
 *.keystore
 *.jks
+
+# Release signing: real values live here, never in git
+keystore.properties
