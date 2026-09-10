@@ -6,7 +6,10 @@ import {
 import type { HourlyForecast } from '../lib/weather'
 import { formatTemp, formatHour, formatPop, getWeatherEmoji, slotsWithinHours, isDaytime } from '../lib/weather'
 
-/** Length of the hourly view. The live API returns 3-hour slots, so this is 8 of them. */
+/**
+ * Length of the hourly view. Slot spacing varies by source, so the cards are selected
+ * by timestamp: 24 slots from Open-Meteo, 8 three-hour slots from OpenWeatherMap.
+ */
 const HOURS = 24
 
 type Props = {

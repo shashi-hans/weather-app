@@ -2,11 +2,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WeatherData } from '../lib/weather'
 import { loadCities, saveCities, newCityKey, sameCity, MAX_SAVED_CITIES } from '../lib/cities'
+import { loadCached, saveCached, removeCached, pruneCache, isFresh } from '../lib/weatherCache'
+import { fetchWeather } from '../lib/weatherClient'
+import type { WeatherQuery } from '../lib/providers/types'
 
 /** Key of the first card, which always tracks the device location. It cannot be removed. */
 export const LOCATION_KEY = 'current-location'
 
-const GEOLOCATION_TIMEOUT_MS = 10000
+/** A cold GPS fix on a phone indoors regularly needs more than ten seconds. */
+const GEOLOCATION_TIMEOUT_MS = 20000
+
+/** Accept a fix the device already has, which answers immediately instead of waking the GPS. */
+const GEOLOCATION_MAX_AGE_MS = 10 * 60 * 1000
+
+/** Shown only when the device has no location and no earlier reading to fall back on. */
 const FALLBACK_CITY = 'London'
 
 export type EntryStatus = 'loading' | 'success' | 'error'
@@ -19,16 +28,39 @@ export type CityEntry = {
   status: EntryStatus
   data?: WeatherData & { isMock?: boolean }
   error?: string
+  /** When the shown reading was stored, set only while a refresh has failed and the cache is standing in. */
+  cachedAt?: number
 }
 
 export type AddResult = { ok: true } | { ok: false; reason: string }
 
-function locationEntry(): CityEntry {
+/**
+ * Builds a card, showing the stored reading straight away when one is held.
+ * This reads localStorage, so it must only run after mount. Calling it during
+ * render would make the server and the browser produce different markup.
+ */
+function entryFor(key: string, label: string, removable: boolean): CityEntry {
+  const cached = loadCached(key)
+  if (!cached) return { key, label, removable, status: 'loading' }
+  // cachedAt stays unset here. It marks a reading standing in for a failed refresh,
+  // and a refresh has not been attempted yet, so setting it would show the offline
+  // note on a card that is about to update normally.
+  return {
+    key,
+    label: cached.data.current.name || label,
+    removable,
+    status: 'success',
+    data: cached.data,
+  }
+}
+
+/** The card the server renders. It carries no stored reading, so both sides start identical. */
+function blankLocationEntry(): CityEntry {
   return { key: LOCATION_KEY, label: 'Your location', removable: false, status: 'loading' }
 }
 
 export function useCityWeather() {
-  const [entries, setEntries]         = useState<CityEntry[]>([locationEntry()])
+  const [entries, setEntries]         = useState<CityEntry[]>([blankLocationEntry()])
   const [activeIndex, setActiveIndex] = useState(0)
   const [restored, setRestored]       = useState(false)
 
@@ -54,20 +86,32 @@ export function useCityWeather() {
 
   /** Loads one card. A previous request for the same card is cancelled first. */
   const load = useCallback(
-    async (key: string, query: string) => {
+    async (key: string, query: WeatherQuery) => {
       controllers.current.get(key)?.abort()
       const controller = new AbortController()
       controllers.current.set(key, controller)
 
       patch(key, { status: 'loading', error: undefined })
       try {
-        const res  = await fetch(`/api/weather?${query}`, { signal: controller.signal })
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error ?? 'Failed to fetch weather')
-        patch(key, { status: 'success', data: json, label: json.current.name, error: undefined })
+        const json = await fetchWeather(query, controller.signal)
+        saveCached(key, json)
+        patch(key, {
+          status: 'success', data: json, label: json.current.name,
+          error: undefined, cachedAt: undefined,
+        })
       } catch (err) {
         if (controller.signal.aborted) return
-        patch(key, { status: 'error', error: err instanceof Error ? err.message : 'Failed to fetch weather' })
+        const message = err instanceof Error ? err.message : 'Failed to fetch weather'
+        // A stored reading beats an error screen when the device has no connection.
+        const cached = loadCached(key)
+        if (cached) {
+          patch(key, {
+            status: 'success', data: cached.data, label: cached.data.current.name,
+            error: undefined, cachedAt: cached.savedAt,
+          })
+        } else {
+          patch(key, { status: 'error', error: message, cachedAt: undefined })
+        }
       } finally {
         if (controllers.current.get(key) === controller) controllers.current.delete(key)
       }
@@ -77,15 +121,21 @@ export function useCityWeather() {
 
   const loadLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      void load(LOCATION_KEY, `city=${encodeURIComponent(FALLBACK_CITY)}`)
+      void load(LOCATION_KEY, { kind: 'city', city: FALLBACK_CITY })
       return
     }
     patch(LOCATION_KEY, { status: 'loading', error: undefined })
     navigator.geolocation.getCurrentPosition(
-      (pos) => void load(LOCATION_KEY, `lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`),
-      // Permission denied or lookup failed, so show a known city rather than an empty card.
-      () => void load(LOCATION_KEY, `city=${encodeURIComponent(FALLBACK_CITY)}`),
-      { timeout: GEOLOCATION_TIMEOUT_MS }
+      (pos) => void load(LOCATION_KEY, { kind: 'coords', lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => {
+        /*
+         * No location available. The city this card last showed is a far better guess
+         * than a fixed default, which would drop a reader in India onto London.
+         */
+        const previous = loadCached(LOCATION_KEY)?.data.current.name
+        void load(LOCATION_KEY, { kind: 'city', city: previous || FALLBACK_CITY })
+      },
+      { timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: GEOLOCATION_MAX_AGE_MS }
     )
   }, [load, patch])
 
@@ -98,14 +148,28 @@ export function useCityWeather() {
   useEffect(() => {
     const saved = loadCities()
     setEntries([
-      locationEntry(),
-      ...saved.map((c) => ({ key: c.key, label: c.name, removable: true, status: 'loading' as const })),
+      entryFor(LOCATION_KEY, 'Your location', false),
+      ...saved.map((c) => entryFor(c.key, c.name, true)),
     ])
     setRestored(true)
 
-    loadLocation()
-    saved.forEach((c) => void load(c.key, `city=${encodeURIComponent(c.name)}`))
+    // A reading stored minutes ago is shown as it is, so start-up makes no request for it.
+    const stale = (key: string) => {
+      const held = loadCached(key)
+      return !held || !isFresh(held.savedAt)
+    }
+
+    if (stale(LOCATION_KEY)) loadLocation()
+    saved
+      .filter((c) => stale(c.key))
+      .forEach((c) => void load(c.key, { kind: 'city', city: c.name }))
   }, [load, loadLocation])
+
+  // Drop stored readings for cards that no longer exist.
+  useEffect(() => {
+    if (!restored) return
+    pruneCache(entries.map((e) => e.key))
+  }, [entries, restored])
 
   // Mirror the removable cards back to storage once the restore has run,
   // so an empty first render cannot wipe the saved list.
@@ -142,12 +206,10 @@ export function useCityWeather() {
 
       let data: WeatherData & { isMock?: boolean }
       try {
-        const res  = await fetch(`/api/weather?city=${encodeURIComponent(name)}`)
-        const json = await res.json()
-        if (!res.ok) return { ok: false, reason: json.error ?? 'Could not add that city' }
-        data = json
-      } catch {
-        return { ok: false, reason: 'Could not reach the weather service' }
+        data = await fetchWeather({ kind: 'city', city: name }, new AbortController().signal)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : ''
+        return { ok: false, reason: message || 'Could not reach the weather service' }
       }
       if (!mounted.current) return { ok: false, reason: 'Cancelled' }
 
@@ -159,6 +221,7 @@ export function useCityWeather() {
       }
 
       const key = newCityKey()
+      saveCached(key, data)
       setEntries((prev) => [
         ...prev,
         { key, label: data.current.name, removable: true, status: 'success', data },
@@ -174,6 +237,7 @@ export function useCityWeather() {
   const removeCity = useCallback((key: string) => {
     controllers.current.get(key)?.abort()
     controllers.current.delete(key)
+    removeCached(key)
     setEntries((prev) => prev.filter((e) => e.key !== key || !e.removable))
   }, [])
 
@@ -195,7 +259,7 @@ export function useCityWeather() {
   const retry = useCallback(
     (entry: CityEntry) => {
       if (entry.key === LOCATION_KEY) loadLocation()
-      else void load(entry.key, `city=${encodeURIComponent(entry.label)}`)
+      else void load(entry.key, { kind: 'city', city: entry.label })
     },
     [load, loadLocation]
   )

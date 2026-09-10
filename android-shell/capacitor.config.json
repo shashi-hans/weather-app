@@ -1,11 +1,8 @@
 {
   "appId": "in.coverstack.weathernow",
   "appName": "Weather Sky",
-  "webDir": "www",
+  "webDir": "../out",
   "server": {
-    "url": "https://weatherskyapp.vercel.app",
-    "errorPath": "index.html",
-    "cleartext": false,
     "androidScheme": "https"
   },
   "android": {
