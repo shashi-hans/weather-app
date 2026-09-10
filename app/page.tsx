@@ -154,7 +154,9 @@ export default function WeatherApp() {
               Last updated: {new Date(data.current.dt * 1000).toLocaleTimeString()}
               {' · '}
               App Built by Shashi Hans
-              <p>Data provided by OpenWeatherMap</p>
+              {' · '}
+              <a href="/privacy" className="underline">Privacy</a>
+              <p>Weather data by Open-Meteo and OpenWeatherMap · Place names © OpenStreetMap contributors</p>
             </div>
           </>
         )}
