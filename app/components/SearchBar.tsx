@@ -73,6 +73,9 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
         <div
           className="absolute top-full mt-2 w-full rounded-2xl overflow-hidden z-50 shadow-2xl"
           style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--border-glass)' }}
+          // Keeps focus on the input, so pressing a suggestion never starts the blur
+          // timer and a slow press cannot unmount the button before its click fires.
+          onMouseDown={(e) => e.preventDefault()}
         >
           <div className="px-3 py-2">
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -84,7 +87,6 @@ export default function SearchBar({ onSearch, onLocate, loading }: Props) {
                   key={c}
                   type="button"
                   // onClick, not onMouseDown, so keyboard and screen-reader activation work.
-                  // The blur close is on a timer, so the dropdown is still mounted when this fires.
                   onClick={() => { onSearch(c); setQuery(c); setFocused(false) }}
                   className="text-xs px-3 py-1.5 rounded-full font-medium transition-all hover:scale-105"
                   style={{

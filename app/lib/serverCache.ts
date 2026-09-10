@@ -34,14 +34,6 @@ export function cacheSet<T>(key: string, value: T, ttlMs: number): void {
   store.set(key, { value, expiresAt: Date.now() + ttlMs })
 }
 
-/** Age of a cached entry in seconds, or null when it is not held. */
-export function cacheAgeSeconds(key: string, ttlMs: number): number | null {
-  const hit = store.get(key)
-  if (!hit) return null
-  const age = Math.round((ttlMs - (hit.expiresAt - Date.now())) / 1000)
-  return age >= 0 ? age : null
-}
-
 // ─── Provider cooldown ────────────────────────────────────────────────────────
 
 const cooldowns = new Map<string, number>()
@@ -59,9 +51,4 @@ export function isExhausted(providerId: string): boolean {
     return false
   }
   return true
-}
-
-/** Clears the cooldown book. Used by tests. */
-export function resetCooldowns(): void {
-  cooldowns.clear()
 }

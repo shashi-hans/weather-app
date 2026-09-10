@@ -33,7 +33,11 @@ const nominatim: Geocoder = {
 
     const body = await res.json()
     const a = body?.address ?? {}
-    const name = a.city ?? a.town ?? a.village ?? a.municipality ?? a.state_district ?? a.state
+    // Ordered from the settlement outwards. state_district is dropped: outside the
+    // city boundary it yields administrative names like "Bengaluru Urban".
+    const name =
+      a.city ?? a.town ?? a.village ?? a.municipality ??
+      a.suburb ?? a.city_district ?? a.county ?? a.state
     if (!name) throw new ProviderError('nominatim returned no place name')
     return { name, country: (a.country_code ?? '').toUpperCase() }
   },
@@ -56,7 +60,13 @@ const bigDataCloud: Geocoder = {
   },
 }
 
-const GEOCODERS: Geocoder[] = [nominatim, bigDataCloud]
+/*
+ * BigDataCloud leads because it names the nearest recognisable city. Outside a city
+ * boundary Nominatim often carries no city, town or village at all: at 12.84, 77.65
+ * it offers only "Bangalore South" and "Bengaluru Urban", while BigDataCloud says
+ * Bengaluru. Nominatim still follows as the fallback.
+ */
+const GEOCODERS: Geocoder[] = [bigDataCloud, nominatim]
 
 /**
  * Best-effort place name for a coordinate pair.
@@ -68,14 +78,22 @@ export async function reverseGeocode(
   lon: number,
   signal: AbortSignal
 ): Promise<PlaceName | null> {
-  const key = `place:${lat.toFixed(2)},${lon.toFixed(2)}`
+  /*
+   * Rounded before the call, not only in the key. A city name needs about a kilometre
+   * of precision, while the exact position the device reported is personal data, so
+   * the third-party geocoders are never given more than the answer requires.
+   */
+  const roundLat = Number(lat.toFixed(2))
+  const roundLon = Number(lon.toFixed(2))
+
+  const key = `place:${roundLat},${roundLon}`
   const cached = cacheGet<PlaceName>(key)
   if (cached) return cached
 
   for (const geocoder of GEOCODERS) {
     if (isExhausted(geocoder.id)) continue
     try {
-      const place = await geocoder.reverse(lat, lon, signal)
+      const place = await geocoder.reverse(roundLat, roundLon, signal)
       cacheSet(key, place, PLACE_TTL_MS)
       return place
     } catch (err) {

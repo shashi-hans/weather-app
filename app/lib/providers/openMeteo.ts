@@ -19,7 +19,16 @@ const REQUEST_TIMEOUT_MS = 8000
 const GEOCODE_TTL_MS = 24 * 60 * 60 * 1000
 
 const HOURLY_SLOTS = 24
-const FORECAST_DAYS = 7
+
+/** Days shown in the app. */
+const DAILY_DAYS = 7
+
+/**
+ * One more day than the app shows. Open-Meteo starts its daily block on its own day
+ * boundary, which can still be yesterday at the location shortly after local midnight,
+ * so the leading stale day is dropped and this keeps DAILY_DAYS available after that.
+ */
+const FORECAST_DAYS = DAILY_DAYS + 1
 
 const CURRENT_FIELDS = [
   'temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'pressure_msl',
@@ -112,6 +121,17 @@ export const openMeteo: WeatherProvider = {
     const timezone = body.utc_offset_seconds ?? 0
     const isDay = cur.is_day === 1
 
+    const d = body.daily
+    /*
+     * Index of the day holding the current reading. The feed can still open on the
+     * previous local day just after midnight in a timezone ahead of UTC, so the entry
+     * is located by timestamp rather than assumed to be the first one.
+     */
+    let today = 0
+    for (let i = 0; i < d.time.length; i++) {
+      if (d.time[i] <= cur.time) today = i
+    }
+
     const current: CurrentWeather = {
       name,
       country,
@@ -121,16 +141,16 @@ export const openMeteo: WeatherProvider = {
       feels_like: cur.apparent_temperature,
       // Open-Meteo has no "now" min and max, so today's forecast range is used.
       // That is the daily high and low a reader expects, unlike OpenWeather's station spread.
-      temp_min:   body.daily.temperature_2m_min[0],
-      temp_max:   body.daily.temperature_2m_max[0],
+      temp_min:   d.temperature_2m_min[today],
+      temp_max:   d.temperature_2m_max[today],
       humidity:   cur.relative_humidity_2m,
       pressure:   Math.round(cur.pressure_msl),
       visibility: cur.visibility ?? 10000,
       wind_speed: cur.wind_speed_10m,
       wind_deg:   cur.wind_direction_10m ?? 0,
       clouds:     cur.cloud_cover ?? 0,
-      sunrise:    body.daily.sunrise[0],
-      sunset:     body.daily.sunset[0],
+      sunrise:    d.sunrise[today],
+      sunset:     d.sunset[today],
       uv_index:   cur.uv_index ?? 0,
       dt:         cur.time,
       timezone,
@@ -138,8 +158,10 @@ export const openMeteo: WeatherProvider = {
     }
 
     const h = body.hourly
-    // The feed starts at midnight local time, so skip the slots already past.
-    const startAt = Math.max(0, h.time.findIndex((t: number) => t >= current.dt))
+    // The feed starts at midnight local time, so skip the slots already past. A feed with
+    // no future slot at all is stale, and its newest slots are closer than its oldest.
+    const firstAhead = h.time.findIndex((t: number) => t >= current.dt)
+    const startAt = firstAhead === -1 ? Math.max(0, h.time.length - HOURLY_SLOTS) : firstAhead
     const hourly: HourlyForecast[] = h.time
       .slice(startAt, startAt + HOURLY_SLOTS)
       .map((dt: number, i: number) => {
@@ -158,20 +180,24 @@ export const openMeteo: WeatherProvider = {
         }
       })
 
-    const d = body.daily
-    const daily: DailyForecast[] = d.time.map((dt: number, i: number) => ({
-      dt,
-      temp_min:   d.temperature_2m_min[i],
-      temp_max:   d.temperature_2m_max[i],
-      humidity:   Math.round(d.relative_humidity_2m_mean?.[i] ?? 0),
-      wind_speed: Math.round((d.wind_speed_10m_max?.[i] ?? 0) * 10) / 10,
-      pop:        (d.precipitation_probability_max?.[i] ?? 0) / 100,
-      uv_index:   d.uv_index_max?.[i] ?? 0,
-      // A day summary reads better with the daytime icon.
-      condition:  conditionFromWmo(d.weather_code?.[i] ?? hourly[0]?.condition.id ?? 0, true),
-      sunrise:    d.sunrise[i],
-      sunset:     d.sunset[i],
-    }))
+    const daily: DailyForecast[] = d.time
+      .slice(today, today + DAILY_DAYS)
+      .map((dt: number, i: number) => {
+        const idx = today + i
+        return {
+          dt,
+          temp_min:   d.temperature_2m_min[idx],
+          temp_max:   d.temperature_2m_max[idx],
+          humidity:   Math.round(d.relative_humidity_2m_mean?.[idx] ?? 0),
+          wind_speed: Math.round((d.wind_speed_10m_max?.[idx] ?? 0) * 10) / 10,
+          pop:        (d.precipitation_probability_max?.[idx] ?? 0) / 100,
+          uv_index:   d.uv_index_max?.[idx] ?? 0,
+          // A day summary reads better with the daytime icon.
+          condition:  conditionFromWmo(d.weather_code?.[idx] ?? 0, true),
+          sunrise:    d.sunrise[idx],
+          sunset:     d.sunset[idx],
+        }
+      })
 
     return { current, hourly, daily }
   },

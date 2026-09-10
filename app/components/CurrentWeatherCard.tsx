@@ -163,7 +163,8 @@ export default function CurrentWeatherCard({
   const active  = entries[activeIndex] ?? entries[0]
   const weather = active?.data?.current
   const uv      = weather ? getUVLabel(weather.uv_index) : null
-  // Chance of rain in the nearest forecast slot, which is the next 3 hours on the live API.
+  // Chance of rain in the nearest forecast slot: the coming hour from Open-Meteo,
+  // the coming three hours from OpenWeatherMap.
   const rainChance = formatPop(active?.data?.hourly?.[0]?.pop ?? 0)
 
   return (
