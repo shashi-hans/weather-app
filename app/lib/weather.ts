@@ -94,24 +94,37 @@ export function formatPop(pop: number): string {
   return `${Math.round(pop * 100)}%`
 }
 
+/**
+ * Both providers report wind in metres per second, which the interface shows as
+ * whole km/h. One m/s is 3.6 km/h.
+ */
+export function windKmh(ms: number): number {
+  return Math.round(ms * 3.6)
+}
+
 export function windDirection(deg: number): string {
   const dirs = ['N','NE','E','SE','S','SW','W','NW']
   return dirs[Math.round(deg / 45) % 8]
 }
 
+/**
+ * Emoji for a condition code. Every icon that contains a sun has a night form,
+ * because a sun behind a cloud at 2am reads as wrong even when the forecast is right.
+ * Icons with no sun in them, such as heavy rain or snow, are used for both.
+ */
 export function getWeatherEmoji(code: number, isDay = true): string {
   if (code >= 200 && code < 300) return '⛈️'
-  if (code >= 300 && code < 400) return '🌦️'
+  if (code >= 300 && code < 400) return isDay ? '🌦️' : '🌧️'
   if (code >= 500 && code < 600) {
     if (code === 511) return '🌨️'
     if (code >= 502) return '🌧️'
-    return '🌦️'
+    return isDay ? '🌦️' : '🌧️'
   }
   if (code >= 600 && code < 700) return '❄️'
   if (code === 701 || code === 741) return '🌫️'
   if (code === 800) return isDay ? '☀️' : '🌙'
   if (code === 801) return isDay ? '🌤️' : '🌙'
-  if (code === 802) return '⛅'
+  if (code === 802) return isDay ? '⛅' : '☁️'
   if (code >= 803) return '☁️'
   return '🌡️'
 }

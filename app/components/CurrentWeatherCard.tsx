@@ -1,7 +1,7 @@
 'use client'
 import { Fragment, useEffect, useRef } from 'react'
 import type { CityEntry } from '../hooks/useCityWeather'
-import { formatTemp, formatTime, formatPop, windDirection, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
+import { formatTemp, formatTime, formatPop, windDirection, windKmh, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
 
 type Props = {
   entries: CityEntry[]
@@ -214,7 +214,7 @@ export default function CurrentWeatherCard({
             {[
               { icon: '🌧️', label: 'Rain Chance', value: rainChance },
               { icon: '☀️', label: 'UV Index',    value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
-              { icon: '💨', label: 'Wind',        value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
+              { icon: '💨', label: 'Wind',        value: `${windKmh(weather.wind_speed)} km/h ${windDirection(weather.wind_deg)}` },
               { icon: '💧', label: 'Humidity',    value: `${weather.humidity}%` },
               { icon: '🌡️', label: 'Pressure',    value: `${weather.pressure} hPa` },
               { icon: '👁️', label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },

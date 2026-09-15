@@ -1,5 +1,5 @@
 import type { CurrentWeather } from '../lib/weather'
-import { getUVLabel, windDirection } from '../lib/weather'
+import { getUVLabel, windDirection, windKmh } from '../lib/weather'
 
 type Props = { weather: CurrentWeather }
 
@@ -64,7 +64,7 @@ export default function ExtraDetails({ weather }: Props) {
         <WindCompass deg={weather.wind_deg} />
         <div className="text-center mt-3">
           <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>
-            {weather.wind_speed} <span className="text-sm font-normal">m/s</span>
+            {windKmh(weather.wind_speed)} <span className="text-sm font-normal">km/h</span>
           </p>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             {windDirection(weather.wind_deg)} direction

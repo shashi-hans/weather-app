@@ -146,7 +146,7 @@ export const openMeteo: WeatherProvider = {
       humidity:   cur.relative_humidity_2m,
       pressure:   Math.round(cur.pressure_msl),
       visibility: cur.visibility ?? 10000,
-      wind_speed: cur.wind_speed_10m,
+      wind_speed: cur.wind_speed_10m ?? 0,
       wind_deg:   cur.wind_direction_10m ?? 0,
       clouds:     cur.cloud_cover ?? 0,
       sunrise:    d.sunrise[today],
