@@ -1,10 +1,11 @@
-# 🌤️ Weather Sky — Beautiful Weather App
+# 🌤️ Weather Sky
 
-A stunning weather application built with **Next.js 14**, **React**, **Recharts**, and **Tailwind CSS**.
+Weather Sky is built with **Next.js 14**, **React**, **Recharts**, and **Tailwind CSS**.
 
 ## ✨ Features
 
 - 🌡️ **Current conditions** — temperature, feels like, then a readings strip of rain chance, UV index, wind, humidity, pressure and visibility, with sunrise, sunset and cloud cover below it
+- 🌫️ **Air quality** — US AQI (0 to 500) with its band, shown under the temperature. It comes from Open-Meteo's air quality feed, which is a separate host and needs no key. OpenWeatherMap reports air quality on a 1 to 5 scale that does not convert, so a card served by that provider leaves the line out rather than showing a number on the wrong scale. The same happens when the feed cannot answer.
 - ⏰ **24-hour forecast** — scrollable cards + interactive area chart. Slots are selected by timestamp rather than by count, so the heading matches the data on the free plan's 3-hour slots.
 - 📅 **Multi-day forecast** — clickable day selector with detailed breakdown. The heading counts the days actually returned: 7 from Open-Meteo and from demo mode, while OpenWeatherMap's 40 three-hour slots cover 120 hours, which lands in 5 or 6 local calendar days depending on the time of the request. The first day is located by timestamp, because Open-Meteo can still open its daily block on the previous local day just after midnight east of UTC.
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)

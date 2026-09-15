@@ -12,7 +12,7 @@ import WeatherCharts from './components/WeatherCharts'
 import ExtraDetails from './components/ExtraDetails'
 import WeatherSkeleton from './components/WeatherSkeleton'
 
-export default function WeatherApp() {
+export default function WeatherSky() {
   const { isNight, pinned, toggle, followSystem } = useTheme()
   const { entries, activeIndex, setActiveIndex, addCity, removeCity, retry } = useCityWeather()
   const [adding, setAdding] = useState(false)

@@ -1,7 +1,7 @@
 'use client'
 import { Fragment, useEffect, useRef } from 'react'
 import type { CityEntry } from '../hooks/useCityWeather'
-import { formatTemp, formatTime, formatPop, windDirection, getWeatherEmoji, getUVLabel, isDaytime } from '../lib/weather'
+import { formatTemp, formatTime, formatPop, windDirection, windKmh, weatherIconSrc, getUVLabel, getAQILabel, isDaytime } from '../lib/weather'
 
 type Props = {
   entries: CityEntry[]
@@ -56,8 +56,10 @@ function HeroPanel({
       <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-10 pointer-events-none"
         style={{ background: isNight ? '#c084fc' : '#0ea5e9', transform: 'translate(-40%,40%)' }} />
 
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 min-h-[184px]">
-        <div className="flex-1 pr-24">
+      {/* The floor keeps every city panel the same height while one is still loading. */}
+      <div className="relative z-10 flex flex-col gap-3 min-h-[136px]">
+        {/* Right padding leaves the add and remove buttons their corner. */}
+        <div className="pr-24">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xl">{entry.removable ? '🏙️' : '📍'}</span>
             <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">
@@ -95,10 +97,11 @@ function HeroPanel({
                 </p>
               )}
               <div className="flex items-end gap-3">
-                <span className="text-6xl md:text-7xl font-black leading-none tracking-tighter">
+                <span className="text-5xl md:text-6xl font-black leading-none tracking-tighter">
                   {formatTemp(weather.temp)}C
                 </span>
-                <div className="pb-2 text-white/70">
+                {/* Held on one line each, so the row does not wrap on a narrow phone. */}
+                <div className="pb-2 text-white/70 whitespace-nowrap">
                   <div className="text-base font-semibold">
                     ↑{formatTemp(weather.temp_max)} ↓{formatTemp(weather.temp_min)}
                   </div>
@@ -110,10 +113,40 @@ function HeroPanel({
         </div>
 
         {weather && (
-          <div className="weather-icon-main text-[72px] md:text-[92px] leading-none select-none text-center">
-            {getWeatherEmoji(weather.condition.id, isDaytime(weather.dt, weather.sunrise, weather.sunset))}
+          <div className="flex items-center gap-4">
+            {/*
+             * Decorative, so the alt text is empty: the condition is already written out
+             * above it, and a screen reader repeating it adds nothing.
+             */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={weatherIconSrc(weather.condition.id, isDaytime(weather.dt, weather.sunrise, weather.sunset))}
+              alt=""
+              width={80}
+              height={80}
+              draggable={false}
+              className="weather-icon-main w-16 h-16 md:w-20 md:h-20 select-none shrink-0"
+            />
+            {/* Air quality is dropped rather than faked when the feed cannot answer. */}
+            {weather.aqi !== undefined && <AirQuality aqi={weather.aqi} />}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function AirQuality({ aqi }: { aqi: number }) {
+  const band = getAQILabel(aqi)
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/weather/dust.svg" alt="" width={48} height={48} className="w-12 h-12 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-wide text-white/60 leading-tight">Air Quality</p>
+        <p className="text-base font-bold leading-tight">
+          {aqi} <span style={{ color: band.color }}>{band.label}</span>
+        </p>
       </div>
     </div>
   )
@@ -214,7 +247,7 @@ export default function CurrentWeatherCard({
             {[
               { icon: '🌧️', label: 'Rain Chance', value: rainChance },
               { icon: '☀️', label: 'UV Index',    value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
-              { icon: '💨', label: 'Wind',        value: `${weather.wind_speed} m/s ${windDirection(weather.wind_deg)}` },
+              { icon: '💨', label: 'Wind',        value: `${windKmh(weather.wind_speed)} km/h ${windDirection(weather.wind_deg)}` },
               { icon: '💧', label: 'Humidity',    value: `${weather.humidity}%` },
               { icon: '🌡️', label: 'Pressure',    value: `${weather.pressure} hPa` },
               { icon: '👁️', label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },

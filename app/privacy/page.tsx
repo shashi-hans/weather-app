@@ -70,7 +70,7 @@ export default function PrivacyPolicy() {
             the city name you searched are sent to them so they can answer:
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Open-Meteo (Germany) — forecasts and city search</li>
+            <li>Open-Meteo (Germany) — forecasts, air quality and city search</li>
             <li>OpenWeatherMap (Latvia / EU) — used only when Open-Meteo cannot answer</li>
             <li>BigDataCloud and OpenStreetMap Nominatim — turning coordinates into a city name</li>
           </ul>

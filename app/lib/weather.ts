@@ -24,6 +24,8 @@ export type CurrentWeather = {
   sunrise: number
   sunset: number
   uv_index: number
+  /** US AQI, 0 to 500. Absent when the air quality lookup could not answer. */
+  aqi?: number
   condition: WeatherCondition
   dt: number
   timezone: number
@@ -94,26 +96,65 @@ export function formatPop(pop: number): string {
   return `${Math.round(pop * 100)}%`
 }
 
+/**
+ * Both providers report wind in metres per second, which the interface shows as
+ * whole km/h. One m/s is 3.6 km/h.
+ */
+export function windKmh(ms: number): number {
+  return Math.round(ms * 3.6)
+}
+
 export function windDirection(deg: number): string {
   const dirs = ['N','NE','E','SE','S','SW','W','NW']
   return dirs[Math.round(deg / 45) % 8]
 }
 
+/**
+ * Emoji for a condition code. Every icon that contains a sun has a night form,
+ * because a sun behind a cloud at 2am reads as wrong even when the forecast is right.
+ * Icons with no sun in them, such as heavy rain or snow, are used for both.
+ */
 export function getWeatherEmoji(code: number, isDay = true): string {
   if (code >= 200 && code < 300) return '⛈️'
-  if (code >= 300 && code < 400) return '🌦️'
+  if (code >= 300 && code < 400) return isDay ? '🌦️' : '🌧️'
   if (code >= 500 && code < 600) {
     if (code === 511) return '🌨️'
     if (code >= 502) return '🌧️'
-    return '🌦️'
+    return isDay ? '🌦️' : '🌧️'
   }
   if (code >= 600 && code < 700) return '❄️'
   if (code === 701 || code === 741) return '🌫️'
   if (code === 800) return isDay ? '☀️' : '🌙'
   if (code === 801) return isDay ? '🌤️' : '🌙'
-  if (code === 802) return '⛅'
+  if (code === 802) return isDay ? '⛅' : '☁️'
   if (code >= 803) return '☁️'
   return '🌡️'
+}
+
+/**
+ * Animated icon for a condition code, as a path under public/weather.
+ *
+ * The files are Meteocons (MIT, see public/weather/LICENSE) and are bundled, not
+ * fetched, so the icon still draws with no network and no outside host sees the
+ * device. Used by the hero card; the smaller forecast cards stay on emoji, which
+ * read better at that size and cost nothing to load.
+ */
+export function weatherIconSrc(code: number, isDay = true): string {
+  const part = isDay ? 'day' : 'night'
+  if (code >= 200 && code < 300) return `/weather/thunderstorms-${part}.svg`
+  if (code >= 300 && code < 400) return `/weather/partly-cloudy-${part}-drizzle.svg`
+  if (code >= 500 && code < 600) {
+    if (code === 511) return '/weather/sleet.svg'
+    if (code >= 502) return '/weather/rain.svg'
+    return `/weather/partly-cloudy-${part}-rain.svg`
+  }
+  if (code >= 600 && code < 700) return '/weather/snow.svg'
+  if (code === 701 || code === 741) return `/weather/fog-${part}.svg`
+  if (code === 800) return `/weather/clear-${part}.svg`
+  if (code === 801) return `/weather/partly-cloudy-${part}.svg`
+  if (code === 802) return '/weather/cloudy.svg'
+  if (code >= 803) return '/weather/overcast.svg'
+  return '/weather/cloudy.svg'
 }
 
 const SECONDS_PER_DAY = 86400
@@ -146,6 +187,19 @@ export function getUVLabel(uv: number): { label: string; color: string } {
 }
 
 /**
+ * Band for a US AQI value, using the EPA breakpoints the 0 to 500 scale is built on.
+ * The colours sit beside the UV ones so the two readings look like one family.
+ */
+export function getAQILabel(aqi: number): { label: string; color: string } {
+  if (aqi <= 50)  return { label: 'Good',      color: '#4ade80' }
+  if (aqi <= 100) return { label: 'Moderate',  color: '#facc15' }
+  if (aqi <= 150) return { label: 'Poor',      color: '#fb923c' }
+  if (aqi <= 200) return { label: 'Unhealthy', color: '#f87171' }
+  if (aqi <= 300) return { label: 'Very Poor', color: '#c084fc' }
+  return { label: 'Hazardous', color: '#f43f5e' }
+}
+
+/**
  * Forecast slots falling inside a window that starts at the first slot.
  * Slot spacing differs between the live API (3 hours) and the sample data (1 hour),
  * so a "24 hour" view selects by timestamp rather than by taking a fixed number of items.
@@ -167,7 +221,7 @@ export function getMockWeatherData(city = 'New York'): WeatherData {
     humidity: 65, pressure: 1013, visibility: 10000,
     wind_speed: 5.2, wind_deg: 220, clouds: 20,
     sunrise: now - 3600 * 5, sunset: now + 3600 * 6,
-    uv_index: 5, dt: now,
+    uv_index: 5, aqi: 42, dt: now,
     condition: { id: 801, main: 'Clouds', description: 'few clouds', icon: '02d' },
     timezone: -18000,
   }
