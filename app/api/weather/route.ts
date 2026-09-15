@@ -5,6 +5,7 @@ import { ProviderError, queryKey, type WeatherProvider, type WeatherQuery } from
 import { openMeteo } from '@/app/lib/providers/openMeteo'
 import { openWeather } from '@/app/lib/providers/openWeather'
 import { cacheGet, cacheSet, isExhausted, markExhausted } from '@/app/lib/serverCache'
+import { fetchAirQuality } from '@/app/lib/providers/airQuality'
 
 /**
  * Weather is served by the first provider that answers. Open-Meteo needs no key and
@@ -135,8 +136,18 @@ export async function GET(request: NextRequest) {
   const budget = setTimeout(() => controller.abort(), REQUEST_BUDGET_MS)
 
   try {
-    const answer = cached ?? (await fetchFromChain(coarsen(query), controller.signal))
-    if (!cached) cacheSet(key, answer, CACHE_TTL_MS)
+    let answer = cached
+    if (!answer) {
+      answer = await fetchFromChain(coarsen(query), controller.signal)
+      /*
+       * Air quality comes from a separate feed, so it is read once the forecast has
+       * placed the request and is stored with it. A null means that feed could not
+       * answer, which leaves the reading out rather than failing the forecast.
+       */
+      const aqi = await fetchAirQuality(answer.data.current.lat, answer.data.current.lon, controller.signal)
+      if (aqi !== null) answer.data.current.aqi = aqi
+      cacheSet(key, answer, CACHE_TTL_MS)
+    }
 
     /*
      * The UV feeds report a daily peak rather than the value for the moment asked

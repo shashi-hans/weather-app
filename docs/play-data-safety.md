@@ -47,7 +47,10 @@ Declare exactly these three. Leave every other category unselected.
 | Purposes | App functionality |
 
 Rounded coordinates are sent to Open-Meteo (Germany), OpenWeatherMap (Latvia),
-BigDataCloud and OpenStreetMap Nominatim so they can return a forecast and a place name.
+BigDataCloud and OpenStreetMap Nominatim so they can return a forecast, an air
+quality reading and a place name. Air quality uses a second Open-Meteo host
+(`app/lib/providers/airQuality.ts`), which adds no new recipient and no new data:
+the same rounded coordinates, rounded again before the call.
 That transfer to a third party is what makes this **Shared**. The forecast answer is held
 in an in-memory cache for 10 minutes, keyed by the rounded coordinates
 (`app/api/weather/route.ts:21,131-139`; key format in `app/lib/providers/types.ts:8-12`),
