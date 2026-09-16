@@ -113,7 +113,7 @@ function HeroPanel({
         </div>
 
         {weather && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-3">
             {/*
              * Decorative, so the alt text is empty: the condition is already written out
              * above it, and a screen reader repeating it adds nothing.
@@ -136,17 +136,44 @@ function HeroPanel({
   )
 }
 
+/** Top of the US AQI scale, which the band strip below spans end to end. */
+const AQI_SCALE_MAX = 500
+
+/**
+ * Band strip, built from the same boundaries getAQILabel uses, each colour running
+ * from its band's start to the next one. Hard stops rather than a blend, so a reader
+ * can see which band a mark sits in.
+ */
+const AQI_STRIP = `linear-gradient(90deg,
+  #4ade80 0% 10%, #facc15 10% 20%, #fb923c 20% 30%,
+  #f87171 30% 40%, #c084fc 40% 60%, #f43f5e 60% 100%)`
+
+/**
+ * Air quality shown the way weather apps generally show it: the number and its band
+ * over a coloured scale with the reading marked on it, rather than a pictorial icon.
+ * The card's other icons are all clouds, and one more cloud here reads as a forecast.
+ */
 function AirQuality({ aqi }: { aqi: number }) {
   const band = getAQILabel(aqi)
+  const position = Math.min(aqi, AQI_SCALE_MAX) / AQI_SCALE_MAX
+
   return (
-    <div className="flex items-center gap-2 min-w-0">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/weather/dust.svg" alt="" width={48} height={48} className="w-12 h-12 shrink-0" />
-      <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-wide text-white/60 leading-tight">Air Quality</p>
-        <p className="text-base font-bold leading-tight">
-          {aqi} <span style={{ color: band.color }}>{band.label}</span>
-        </p>
+    <div className="min-w-0 w-36">
+      <p className="text-[11px] uppercase tracking-wide text-white/60 leading-tight">Air Quality</p>
+      <p className="text-base font-bold leading-tight mb-1.5">
+        {aqi} <span style={{ color: band.color }}>{band.label}</span>
+      </p>
+      <div className="relative h-1.5 rounded-full" style={{ background: AQI_STRIP }}>
+        {/* Marker sits on the reading; the translate keeps it centred at either end. */}
+        <span
+          aria-hidden="true"
+          className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-white"
+          style={{
+            left: `${position * 100}%`,
+            transform: 'translate(-50%, -50%)',
+            background: band.color,
+          }}
+        />
       </div>
     </div>
   )
