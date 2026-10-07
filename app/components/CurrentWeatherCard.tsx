@@ -1,61 +1,30 @@
 'use client'
-import { Fragment, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CityEntry } from '../hooks/useCityWeather'
-import { formatTemp, formatTime, formatPop, windDirection, windKmh, weatherIconSrc, getUVLabel, getAQILabel, isDaytime } from '../lib/weather'
+import { formatTemp, formatTime, formatPop, windDirection, windKmh, getUVLabel, getAQILabel } from '../lib/weather'
+import { canOpenLocationSettings, openLocationSettings } from '../lib/nativeBridge'
 
 type Props = {
   entries: CityEntry[]
   activeIndex: number
-  isNight: boolean
   onActiveChange: (index: number) => void
-  onAddCity: () => void
   onRemoveCity: (key: string) => void
   onRetry: (entry: CityEntry) => void
 }
 
 function HeroPanel({
-  entry, isNight, onAddCity, onRemoveCity, onRetry,
+  entry, onRemoveCity, onRetry,
 }: {
   entry: CityEntry
-  isNight: boolean
-  onAddCity: () => void
   onRemoveCity: (key: string) => void
   onRetry: (entry: CityEntry) => void
 }) {
   const weather = entry.data?.current
 
   return (
-    <div className="hero-page hero-bg p-5 pb-6 text-white relative overflow-hidden">
-      {/* City controls, pinned to the top right of the panel */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-        {entry.removable && (
-          <button
-            onClick={() => onRemoveCity(entry.key)}
-            aria-label={`Remove ${entry.label}`}
-            title={`Remove ${entry.label}`}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-lg leading-none transition-all hover:scale-110 active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)' }}
-          >
-            ×
-          </button>
-        )}
-        <button
-          onClick={onAddCity}
-          aria-label="Add a city"
-          title="Add a city"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-xl font-bold leading-none transition-all hover:scale-110 active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.25)', border: '1px solid rgba(255,255,255,0.4)' }}
-        >
-          +
-        </button>
-      </div>
-
-      {/* Decorative blobs */}
-      <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-20 pointer-events-none"
-        style={{ background: isNight ? '#818cf8' : '#38bdf8', transform: 'translate(40%,-40%)' }} />
-      <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-10 pointer-events-none"
-        style={{ background: isNight ? '#c084fc' : '#0ea5e9', transform: 'translate(-40%,40%)' }} />
-
+    /* No panel of its own: the live sky the page draws is the background here. */
+    <div className="hero-page p-5 pb-6 text-white relative">
+      {/* Removing a city belongs to the card it removes. Adding one lives in the header. */}
       {/* The floor keeps every city panel the same height while one is still loading. */}
       <div className="relative z-10 flex flex-col gap-3 min-h-[136px]">
         {/* Right padding leaves the add and remove buttons their corner. */}
@@ -90,6 +59,7 @@ function HeroPanel({
           {weather && (
             <>
               <p className="capitalize text-white/80 text-sm mb-3">{weather.condition.description}</p>
+              {entry.locationNote && <LocationNote note={entry.locationNote} />}
               {entry.cachedAt && (
                 <p className="text-white/70 text-xs mb-3 flex items-center gap-1.5">
                   <span aria-hidden="true">⚡</span>
@@ -113,22 +83,20 @@ function HeroPanel({
         </div>
 
         {weather && (
+          /* Air quality leads the row; removing this city closes it on the right. */
           <div className="flex items-center justify-between gap-3">
-            {/*
-             * Decorative, so the alt text is empty: the condition is already written out
-             * above it, and a screen reader repeating it adds nothing.
-             */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={weatherIconSrc(weather.condition.id, isDaytime(weather.dt, weather.sunrise, weather.sunset))}
-              alt=""
-              width={80}
-              height={80}
-              draggable={false}
-              className="weather-icon-main w-16 h-16 md:w-20 md:h-20 select-none shrink-0"
-            />
-            {/* Air quality is dropped rather than faked when the feed cannot answer. */}
-            {weather.aqi !== undefined && <AirQuality aqi={weather.aqi} />}
+            {weather.aqi === undefined ? <span /> : <AirQuality aqi={weather.aqi} />}
+            {entry.removable && (
+              <button
+                onClick={() => onRemoveCity(entry.key)}
+                aria-label={`Remove ${entry.label}`}
+                title={`Remove ${entry.label}`}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-lg leading-none transition-all hover:scale-110 active:scale-95"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)' }}
+              >
+                ×
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -136,59 +104,84 @@ function HeroPanel({
   )
 }
 
-/** Top of the US AQI scale, which the band strip below spans end to end. */
-const AQI_SCALE_MAX = 500
-
 /**
- * Band strip, built from the same boundaries getAQILabel uses, each colour running
- * from its band's start to the next one. Hard stops rather than a blend, so a reader
- * can see which band a mark sits in.
+ * Why the location card is showing a stand-in city, with a shortcut to Android's
+ * location settings when the app is running there. The shortcut is decided after
+ * mount, because the Capacitor global does not exist while the page is prerendered
+ * and reading it during render would make the two passes disagree.
  */
-const AQI_STRIP = `linear-gradient(90deg,
-  #4ade80 0% 10%, #facc15 10% 20%, #fb923c 20% 30%,
-  #f87171 30% 40%, #c084fc 40% 60%, #f43f5e 60% 100%)`
+function LocationNote({ note }: { note: string }) {
+  const [canOpen, setCanOpen] = useState(false)
+  useEffect(() => { setCanOpen(canOpenLocationSettings()) }, [])
+
+  return (
+    /* Inline flow rather than a flex row, so the pin stays with the text it marks. */
+    <p className="text-white/70 text-xs mb-3 leading-relaxed">
+      <span aria-hidden="true" className="mr-1">📍</span>
+      {note}
+      {canOpen && (
+        <button
+          onClick={() => { void openLocationSettings() }}
+          className="ml-1.5 underline font-semibold underline-offset-2"
+        >
+          Turn on location
+        </button>
+      )}
+    </p>
+  )
+}
 
 /**
- * Air quality shown the way weather apps generally show it: the number and its band
- * over a coloured scale with the reading marked on it, rather than a pictorial icon.
- * The card's other icons are all clouds, and one more cloud here reads as a forecast.
+ * Air quality as a leaf filled with the band's colour, beside the reading.
+ *
+ * A leaf is the sign this measurement carries everywhere, so it needs no label to be
+ * understood, and colouring the leaf itself rather than a swatch next to it means
+ * the severity is read in the same glance as the icon.
  */
 function AirQuality({ aqi }: { aqi: number }) {
   const band = getAQILabel(aqi)
-  const position = Math.min(aqi, AQI_SCALE_MAX) / AQI_SCALE_MAX
 
   return (
-    <div className="min-w-0 w-36">
-      <p className="text-[11px] uppercase tracking-wide text-white/60 leading-tight">Air Quality</p>
-      <p className="text-base font-bold leading-tight mb-1.5">
-        {aqi} <span style={{ color: band.color }}>{band.label}</span>
-      </p>
-      <div className="relative h-1.5 rounded-full" style={{ background: AQI_STRIP }}>
-        {/* Marker sits on the reading; the translate keeps it centred at either end. */}
-        <span
-          aria-hidden="true"
-          className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-white"
-          style={{
-            left: `${position * 100}%`,
-            transform: 'translate(-50%, -50%)',
-            background: band.color,
-          }}
+    <div className="flex items-center gap-2 min-w-0">
+      <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
+        <path
+          d="M20 3c-9 0-15 4.2-15 11a8 8 0 0 0 1.4 4.6L4 21l1.5 1.3 2.3-2.5A8.6 8.6 0 0 0 12 21c7 0 8-9.3 8-18Z"
+          fill={band.color}
         />
+        {/* The midrib, drawn as a gap in the leaf so it reads at this size. */}
+        <path
+          d="M17.4 6.2C13 8.4 10 12.2 8.6 17.4"
+          fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1.3" strokeLinecap="round"
+        />
+      </svg>
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-wide text-white/60 leading-tight">Air Quality</p>
+        <p className="text-base font-bold leading-tight">
+          {aqi} <span style={{ color: band.color }}>{band.label}</span>
+        </p>
       </div>
     </div>
   )
 }
 
+/** Quiet time after the last scroll event before the carousel counts as stopped. */
+const SETTLE_MS = 20
+
 export default function CurrentWeatherCard({
-  entries, activeIndex, isNight, onActiveChange, onAddCity, onRemoveCity, onRetry,
+  entries, activeIndex, onActiveChange, onRemoveCity, onRetry,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null)
   // True while a programmatic scroll is animating. A smooth scroll fires scroll events for
   // every card it passes, and reporting those as selections would retarget the animation.
   const settling    = useRef(false)
   const settleTimer = useRef<ReturnType<typeof setTimeout>>()
+  /** Fires once the carousel has come to rest, to name the card it stopped on. */
+  const restTimer   = useRef<ReturnType<typeof setTimeout>>()
 
-  useEffect(() => () => clearTimeout(settleTimer.current), [])
+  useEffect(() => () => {
+    clearTimeout(settleTimer.current)
+    clearTimeout(restTimer.current)
+  }, [])
 
   // Keep the scroll position in step with the active card when it changes from outside,
   // such as adding a city, removing one, or clicking a dot.
@@ -205,19 +198,33 @@ export default function CurrentWeatherCard({
     el.scrollTo({ left: target, behavior: 'smooth' })
   }, [activeIndex, entries.length])
 
+  /*
+   * The card in view is reported once the scroll has stopped, not while the finger
+   * is still moving.
+   *
+   * Changing it mid-drag re-rendered the whole page, sky and charts included, on
+   * every scroll event the browser fired, and the carousel stuttered under it. The
+   * native snap settles first; this only has to name where it landed.
+   */
   function handleScroll() {
     const el = scroller.current
     if (!el || el.clientWidth === 0) return
-    const index = Math.round(el.scrollLeft / el.clientWidth)
 
     if (settling.current) {
-      if (index === activeIndex) {
+      if (Math.round(el.scrollLeft / el.clientWidth) === activeIndex) {
         settling.current = false
         clearTimeout(settleTimer.current)
       }
       return
     }
-    if (index !== activeIndex && index >= 0 && index < entries.length) onActiveChange(index)
+
+    clearTimeout(restTimer.current)
+    restTimer.current = setTimeout(() => {
+      const target = scroller.current
+      if (!target || target.clientWidth === 0) return
+      const index = Math.round(target.scrollLeft / target.clientWidth)
+      if (index !== activeIndex && index >= 0 && index < entries.length) onActiveChange(index)
+    }, SETTLE_MS)
   }
 
   const active  = entries[activeIndex] ?? entries[0]
@@ -228,15 +235,17 @@ export default function CurrentWeatherCard({
   const rainChance = formatPop(active?.data?.hourly?.[0]?.pop ?? 0)
 
   return (
-    <div className="glass-card rounded-3xl overflow-hidden animate-fadeInUp">
-      {/* Blue section: one panel per city, scrolled horizontally */}
+    /*
+     * The city block sits straight on the sky with no card around it, the way a
+     * phone's own weather app reads, and the details below keep theirs.
+     */
+    <div className="city-block animate-fadeInUp">
+      {/* One panel per city, scrolled horizontally */}
       <div ref={scroller} onScroll={handleScroll} className="hero-scroll">
         {entries.map((entry) => (
           <HeroPanel
             key={entry.key}
             entry={entry}
-            isNight={isNight}
-            onAddCity={onAddCity}
             onRemoveCity={onRemoveCity}
             onRetry={onRetry}
           />
@@ -245,7 +254,7 @@ export default function CurrentWeatherCard({
 
       {/* Position dots, shown once there is more than one city */}
       {entries.length > 1 && (
-        <div className="flex items-center justify-center gap-2 py-3" style={{ background: 'var(--bg-card)' }}>
+        <div className="flex items-center justify-center gap-2 py-3">
           {entries.map((entry, i) => (
             <button
               key={entry.key}
@@ -265,57 +274,37 @@ export default function CurrentWeatherCard({
         </div>
       )}
 
-      {/* White section: details for the visible city */}
+      {/* Details for the visible city, in their own panel */}
       {weather && (
-        <>
-          {/* Six readings laid out as two rows of three at every width */}
-          <div className="grid grid-cols-3 gap-px"
-            style={{ background: 'var(--border-glass)' }}>
+        /* Tighter and barely tinted, so the sky keeps showing through the readings. */
+        /* Every reading for today in one footer, sun times among them. */
+        <div className="details-panel rounded-3xl overflow-hidden mt-1">
+          <div className="grid grid-cols-3 gap-px" style={{ background: 'rgba(255,255,255,0.1)' }}>
             {[
-              { icon: '🌧️', label: 'Rain Chance', value: rainChance },
-              { icon: '☀️', label: 'UV Index',    value: `${weather.uv_index.toFixed(1)}`, note: uv?.label, noteColor: uv?.color },
-              { icon: '💨', label: 'Wind',        value: `${windKmh(weather.wind_speed)} km/h ${windDirection(weather.wind_deg)}` },
-              { icon: '💧', label: 'Humidity',    value: `${weather.humidity}%` },
-              { icon: '🌡️', label: 'Pressure',    value: `${weather.pressure} hPa` },
-              { icon: '👁️', label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },
+              { label: 'Rain Chance', value: rainChance },
+              { label: 'UV Index',    value: weather.uv_index.toFixed(1), note: uv?.label, noteColor: uv?.color },
+              { label: 'Wind',        value: `${windKmh(weather.wind_speed)} km/h ${windDirection(weather.wind_deg)}` },
+              { label: 'Humidity',    value: `${weather.humidity}%` },
+              { label: 'Pressure',    value: `${weather.pressure} hPa` },
+              { label: 'Visibility',  value: `${(weather.visibility / 1000).toFixed(1)} km` },
+              { label: 'Sunrise',     value: formatTime(weather.sunrise, weather.timezone) },
+              { label: 'Sunset',      value: formatTime(weather.sunset, weather.timezone) },
+              { label: 'Cloud Cover', value: `${weather.clouds}%` },
             ].map((s) => (
               <div
                 key={s.label}
-                className="flex flex-col items-center justify-center gap-1 py-4 px-2"
-                style={{ background: 'var(--bg-card)' }}
+                className="flex flex-col items-center justify-center gap-0.5 py-2 px-2"
+                style={{ background: 'rgba(10, 16, 34, 0.42)' }}
               >
-                <span className="text-2xl">{s.icon}</span>
-                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
-                <span className="text-sm font-bold text-center" style={{ color: 'var(--text-primary)' }}>{s.value}</span>
+                <span className="text-[11px] font-medium text-white/70">{s.label}</span>
+                <span className="text-sm font-bold text-center text-white whitespace-nowrap">{s.value}</span>
                 {s.note && (
                   <span className="text-[10px] font-semibold" style={{ color: s.noteColor }}>{s.note}</span>
                 )}
               </div>
             ))}
           </div>
-
-          {/* Sun times and cloud cover share the closing row */}
-          <div className="flex items-center justify-between py-4 px-3 gap-1">
-            {[
-              { icon: '🌅', label: 'Sunrise',     value: formatTime(weather.sunrise, weather.timezone) },
-              { icon: '🌇', label: 'Sunset',      value: formatTime(weather.sunset, weather.timezone) },
-              { icon: '☁️', label: 'Cloud Cover', value: `${weather.clouds}%` },
-            ].map((s, i) => (
-              <Fragment key={s.label}>
-                {i > 0 && <div className="h-8 w-px flex-shrink-0" style={{ background: 'var(--border-glass)' }} />}
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xl flex-shrink-0">{s.icon}</span>
-                  <div className="min-w-0">
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
-                    <p className="font-bold text-sm whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
-                      {s.value}
-                    </p>
-                  </div>
-                </div>
-              </Fragment>
-            ))}
-          </div>
-        </>
+        </div>
       )}
     </div>
   )

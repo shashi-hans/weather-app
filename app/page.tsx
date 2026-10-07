@@ -1,10 +1,12 @@
 'use client'
-import { useState } from 'react'
-import { useCityWeather } from './hooks/useCityWeather'
+import { useEffect, useRef, useState } from 'react'
+import { useCityWeather, LOCATION_KEY } from './hooks/useCityWeather'
+import { isDaytime } from './lib/weather'
 import { useTheme } from './hooks/useTheme'
-import DayNightToggle from './components/DayNightToggle'
-import SearchBar from './components/SearchBar'
 import AddCityDialog from './components/AddCityDialog'
+import LocationWarningDialog from './components/LocationWarningDialog'
+import PullToRefresh from './components/PullToRefresh'
+import SkyBackground from './components/SkyBackground'
 import CurrentWeatherCard from './components/CurrentWeatherCard'
 import HourlyForecastCard from './components/HourlyForecastCard'
 import DailyForecastCard from './components/DailyForecastCard'
@@ -13,16 +15,25 @@ import ExtraDetails from './components/ExtraDetails'
 import WeatherSkeleton from './components/WeatherSkeleton'
 
 export default function WeatherSky() {
-  const { isNight, pinned, toggle, followSystem } = useTheme()
-  const { entries, activeIndex, setActiveIndex, addCity, removeCity, retry } = useCityWeather()
+  const { isNight } = useTheme()
+  const { entries, activeIndex, setActiveIndex, addCity, removeCity, retry, refreshAll } = useCityWeather()
   const [adding, setAdding] = useState(false)
-  const [searchNotice, setSearchNotice] = useState('')
 
-  async function searchCity(city: string) {
-    setSearchNotice('')
-    const result = await addCity(city)
-    if (!result.ok) setSearchNotice(result.reason)
-  }
+  /*
+   * Warn once a run that the location card is showing a stand-in city. Raising it
+   * again on every failed refresh would nag someone who has already decided to
+   * carry on, and the card keeps the same sentence for as long as it applies.
+   */
+  const locationNote = entries.find((e) => e.key === LOCATION_KEY)?.locationNote
+  const [locationWarning, setLocationWarning] = useState('')
+  const warned = useRef(false)
+
+  useEffect(() => {
+    if (locationNote && !warned.current) {
+      warned.current = true
+      setLocationWarning(locationNote)
+    }
+  }, [locationNote])
 
   const active = entries[activeIndex] ?? entries[0]
   const data   = active?.data
@@ -36,17 +47,17 @@ export default function WeatherSky() {
        */
       style={{ background: 'var(--gradient-page)' }}
     >
-      {/* Decorative background orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div
-          className="absolute w-[600px] h-[600px] rounded-full opacity-10 blur-3xl animate-float"
-          style={{ top: '-200px', right: '-200px', background: 'var(--orb-primary)' }}
-        />
-        <div
-          className="absolute w-[400px] h-[400px] rounded-full opacity-10 blur-3xl"
-          style={{ bottom: '-100px', left: '-100px', background: 'var(--orb-secondary)', animationDelay: '2s' }}
-        />
-      </div>
+      {/*
+       * The live sky for whichever city the carousel is showing, behind the whole
+       * page. Daylight is taken from that city, not from this device, so a card for
+       * somewhere the sun is up keeps a daytime sky.
+       */}
+      <PullToRefresh onRefresh={refreshAll} />
+
+      <SkyBackground
+        code={data?.current.condition.id}
+        isDay={data ? isDaytime(data.current.dt, data.current.sunrise, data.current.sunset) : !isNight}
+      />
 
       {/* Navbar */}
       <header
@@ -65,32 +76,21 @@ export default function WeatherSky() {
             </span>
           </div>
 
-          <div className="flex-shrink-0 ml-auto flex items-center gap-3">
-            {pinned && (
-              <button
-                onClick={followSystem}
-                className="text-xs font-semibold underline"
-                style={{ color: 'var(--text-muted)' }}
-                title="Go back to following the system light/dark setting"
-              >
-                Use system
-              </button>
-            )}
-            <DayNightToggle isNight={isNight} toggle={toggle} />
-          </div>
+          <button
+            onClick={() => setAdding(true)}
+            aria-label="Add a city"
+            title="Add a city"
+            className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-xl font-bold leading-none transition-all hover:scale-110 active:scale-95"
+            style={{
+              background: 'var(--bg-glass)',
+              border: '1px solid var(--border-glass)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            +
+          </button>
 
-          <div className="w-full">
-            <SearchBar
-              onSearch={(city) => { void searchCity(city) }}
-              onLocate={() => { setSearchNotice(''); if (entries[0]) retry(entries[0]) }}
-              loading={entries[0]?.status === 'loading'}
-            />
-            {searchNotice && (
-              <p className="text-xs font-medium mt-2 px-1" style={{ color: '#f87171' }}>
-                {searchNotice}
-              </p>
-            )}
-          </div>
+
         </div>
       </header>
 
@@ -122,9 +122,7 @@ export default function WeatherSky() {
         <CurrentWeatherCard
           entries={entries}
           activeIndex={activeIndex}
-          isNight={isNight}
           onActiveChange={setActiveIndex}
-          onAddCity={() => setAdding(true)}
           onRemoveCity={removeCity}
           onRetry={retry}
         />
@@ -164,6 +162,10 @@ export default function WeatherSky() {
 
       {adding && (
         <AddCityDialog onAdd={addCity} onClose={() => setAdding(false)} />
+      )}
+
+      {locationWarning && (
+        <LocationWarningDialog note={locationWarning} onClose={() => setLocationWarning('')} />
       )}
     </div>
   )

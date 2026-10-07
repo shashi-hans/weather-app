@@ -30,6 +30,19 @@ export type CityEntry = {
   error?: string
   /** When the shown reading was stored, set only while a refresh has failed and the cache is standing in. */
   cachedAt?: number
+  /**
+   * Why the location card is showing a stand-in city. Set only on that card, and only
+   * when the device gave no position, so a reader is never told they are somewhere
+   * they are not.
+   */
+  locationNote?: string
+}
+
+/** What to tell a reader when the device declines to give a position. */
+function geolocationNote(code: number, city: string): string {
+  if (code === 1) return `Location permission is off. Showing ${city}.`
+  if (code === 3) return `Location timed out. Showing ${city}.`
+  return `Device location is unavailable. Showing ${city}.`
 }
 
 export type AddResult = { ok: true } | { ok: false; reason: string }
@@ -119,24 +132,50 @@ export function useCityWeather() {
     [patch]
   )
 
-  const loadLocation = useCallback(() => {
+  /**
+   * Asks the device where it is, then loads that card.
+   *
+   * Resolves once the reading is in, however it got there, so a caller that holds a
+   * spinner up has something to wait on. A position arrives through a callback, so
+   * the promise is what carries that back out.
+   */
+  const loadLocation = useCallback((): Promise<void> => {
     if (!navigator.geolocation) {
-      void load(LOCATION_KEY, { kind: 'city', city: FALLBACK_CITY })
-      return
+      patch(LOCATION_KEY, { locationNote: `This device has no location. Showing ${FALLBACK_CITY}.` })
+      return load(LOCATION_KEY, { kind: 'city', city: FALLBACK_CITY })
     }
     patch(LOCATION_KEY, { status: 'loading', error: undefined })
-    navigator.geolocation.getCurrentPosition(
-      (pos) => void load(LOCATION_KEY, { kind: 'coords', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {
+
+    return new Promise<void>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          patch(LOCATION_KEY, { locationNote: undefined })
+          void load(LOCATION_KEY, { kind: 'coords', lat: pos.coords.latitude, lon: pos.coords.longitude })
+            .finally(resolve)
+        },
+        (err) => {
         /*
          * No location available. The city this card last showed is a far better guess
-         * than a fixed default, which would drop a reader in India onto London.
+         * than a fixed default, which would drop a reader in India onto London. The note
+         * says which case this is, because a stand-in city under a location pin otherwise
+         * looks like the app placing the reader in the wrong town.
          */
-        const previous = loadCached(LOCATION_KEY)?.data.current.name
-        void load(LOCATION_KEY, { kind: 'city', city: previous || FALLBACK_CITY })
-      },
-      { timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: GEOLOCATION_MAX_AGE_MS }
-    )
+          const city = loadCached(LOCATION_KEY)?.data.current.name || FALLBACK_CITY
+          patch(LOCATION_KEY, { locationNote: geolocationNote(err.code, city) })
+          void load(LOCATION_KEY, { kind: 'city', city }).finally(resolve)
+        },
+        {
+          /*
+           * Android hands a plain request to the network provider, which answers with
+           * nothing on a device that holds no recent fix. Asking for high accuracy puts
+           * the request on the fused and GPS providers instead.
+           */
+          enableHighAccuracy: true,
+          timeout: GEOLOCATION_TIMEOUT_MS,
+          maximumAge: GEOLOCATION_MAX_AGE_MS,
+        }
+      )
+    })
   }, [load, patch])
 
   /*
@@ -159,7 +198,7 @@ export function useCityWeather() {
       return !held || !isFresh(held.savedAt)
     }
 
-    if (stale(LOCATION_KEY)) loadLocation()
+    if (stale(LOCATION_KEY)) void loadLocation()
     saved
       .filter((c) => stale(c.key))
       .forEach((c) => void load(c.key, { kind: 'city', city: c.name }))
@@ -256,13 +295,45 @@ export function useCityWeather() {
     setActiveIndex(index)
   }, [entries])
 
+  /*
+   * Ask again when the app comes back to the front, but only while the location card
+   * is standing in for a missing position. Someone who just switched location on in
+   * Android's settings returns to the card that sent them there, and having to press
+   * a button as well would read as the switch not having worked.
+   */
+  const locationStoodIn = useRef(false)
+  useEffect(() => {
+    locationStoodIn.current = entries.some((e) => e.key === LOCATION_KEY && e.locationNote !== undefined)
+  }, [entries])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && locationStoodIn.current) void loadLocation()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [loadLocation])
+
   const retry = useCallback(
     (entry: CityEntry) => {
-      if (entry.key === LOCATION_KEY) loadLocation()
+      if (entry.key === LOCATION_KEY) void loadLocation()
       else void load(entry.key, { kind: 'city', city: entry.label })
     },
     [load, loadLocation]
   )
 
-  return { entries, activeIndex, setActiveIndex, addCity, removeCity, retry }
+  /**
+   * Reloads every card. Resolves once they have all settled, so a pull to refresh
+   * can hold its spinner until the readings are actually in.
+   */
+  const refreshAll = useCallback(async () => {
+    await Promise.all(
+      entries.map((e) => {
+        if (e.key === LOCATION_KEY) return loadLocation()
+        return load(e.key, { kind: 'city', city: e.label })
+      })
+    )
+  }, [entries, load, loadLocation])
+
+  return { entries, activeIndex, setActiveIndex, addCity, removeCity, retry, refreshAll }
 }
