@@ -131,32 +131,6 @@ export function getWeatherEmoji(code: number, isDay = true): string {
   return '🌡️'
 }
 
-/**
- * Animated icon for a condition code, as a path under public/weather.
- *
- * The files are Meteocons (MIT, see public/weather/LICENSE) and are bundled, not
- * fetched, so the icon still draws with no network and no outside host sees the
- * device. Used by the hero card; the smaller forecast cards stay on emoji, which
- * read better at that size and cost nothing to load.
- */
-export function weatherIconSrc(code: number, isDay = true): string {
-  const part = isDay ? 'day' : 'night'
-  if (code >= 200 && code < 300) return `/weather/thunderstorms-${part}.svg`
-  if (code >= 300 && code < 400) return `/weather/partly-cloudy-${part}-drizzle.svg`
-  if (code >= 500 && code < 600) {
-    if (code === 511) return '/weather/sleet.svg'
-    if (code >= 502) return '/weather/rain.svg'
-    return `/weather/partly-cloudy-${part}-rain.svg`
-  }
-  if (code >= 600 && code < 700) return '/weather/snow.svg'
-  if (code === 701 || code === 741) return `/weather/fog-${part}.svg`
-  if (code === 800) return `/weather/clear-${part}.svg`
-  if (code === 801) return `/weather/partly-cloudy-${part}.svg`
-  if (code === 802) return '/weather/cloudy.svg'
-  if (code >= 803) return '/weather/overcast.svg'
-  return '/weather/cloudy.svg'
-}
-
 const SECONDS_PER_DAY = 86400
 
 const timeOfDay = (unix: number) => ((unix % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY
