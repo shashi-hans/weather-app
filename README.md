@@ -11,7 +11,7 @@ Weather Sky is built with **Next.js 14**, **React**, **Recharts**, and **Tailwin
 - 📊 **Beautiful charts** — temperature range bar chart + humidity/rain chart (Recharts)
 - 💨 **Wind compass** — visual direction indicator
 - ☀️ **UV Index bar** — color-coded severity scale
-- 🌙 **Day/Night theme** — follows the operating system's light/dark setting on desktop and Android, and reacts if the system flips while the app is open. The toggle pins a choice that survives restarts; "Use system" clears it.
+- 🌙 **Day/Night theme** — follows the operating system's light and dark setting on desktop and Android, and reacts if the system flips while the app is open. There is no in-app override.
 - 📍 **Location detection** — the first card always tracks device GPS, falling back to a city search when location is denied
 - 🏙️ **Multiple cities** — "+" beside the city name adds a city; the blue hero scrolls horizontally with snap, and the hourly, daily, chart and detail sections follow whichever city is visible. Up to 8 saved cities, kept in `localStorage` on the device and never sent anywhere.
 - 📶 **Works through a dropout** — each successful reading is stored in `localStorage` for 12 hours. If a refresh fails, the card keeps showing the stored reading with an "Offline — saved reading from ..." note instead of an error. This covers losing the connection while the app is open; a cold start still needs the network, because the page itself is served from it (a service worker would be required for full offline).
@@ -100,8 +100,6 @@ app/
 │   ├── DailyForecastCard   ← day selector
 │   ├── WeatherCharts       ← Recharts bar charts
 │   ├── ExtraDetails        ← Wind compass, UV, atmosphere
-│   ├── SearchBar           ← City search with suggestions
-│   ├── DayNightToggle      ← Animated theme toggle
 │   └── WeatherSkeleton     ← Loading state
 │   └── AddCityDialog       ← Add-a-city modal
 ├── hooks/

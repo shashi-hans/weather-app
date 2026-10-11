@@ -7,8 +7,8 @@
   color-scheme: light;
   --bg-primary:      #e0f2fe;
   --bg-secondary:    #bae6fd;
-  --bg-card:         rgba(255,255,255,0.55);
-  --bg-card-hover:   rgba(255,255,255,0.75);
+  --bg-card:         rgba(255,255,255,0.4);
+  --bg-card-hover:   rgba(255,255,255,0.58);
   --bg-glass:        rgba(255,255,255,0.35);
   --border-glass:    rgba(255,255,255,0.6);
   --text-primary:    #0c2340;
@@ -38,8 +38,8 @@
     color-scheme: dark;
     --bg-primary:      #0a0f1e;
     --bg-secondary:    #111827;
-    --bg-card:         rgba(17,24,39,0.7);
-    --bg-card-hover:   rgba(31,41,55,0.85);
+    --bg-card:         rgba(10,16,34,0.38);
+    --bg-card-hover:   rgba(20,28,52,0.52);
     --bg-glass:        rgba(17,24,39,0.5);
     --border-glass:    rgba(99,102,241,0.25);
     --text-primary:    #e2e8f0;
@@ -71,8 +71,8 @@
   color-scheme: dark;
   --bg-primary:      #0a0f1e;
   --bg-secondary:    #111827;
-  --bg-card:         rgba(17,24,39,0.7);
-  --bg-card-hover:   rgba(31,41,55,0.85);
+  --bg-card:         rgba(10,16,34,0.38);
+  --bg-card-hover:   rgba(20,28,52,0.52);
   --bg-glass:        rgba(17,24,39,0.5);
   --border-glass:    rgba(99,102,241,0.25);
   --text-primary:    #e2e8f0;
@@ -120,6 +120,66 @@ body {
 .hero-bg {
   background: var(--gradient-hero);
   transition: background 0.6s ease;
+}
+
+/*
+ * The city panel over a live sky. Barely tinted, because the sky is what the panel
+ * is reporting: an opaque card would hide the weather it describes.
+ */
+.hero-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+}
+
+/*
+ * The readings under the city block. Far lighter than a glass card, because the sky
+ * behind it is the point: an opaque strip here cuts the page in half.
+ */
+.details-panel {
+  /* Dark enough to carry white text over a bright daytime sky. */
+  background: rgba(10, 16, 34, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/*
+ * The city and its readings fill the first screen, so what follows opens with its
+ * heading on the bottom edge: enough to say there is more without taking room from
+ * the weather itself. dvh rather than vh, because a phone's address bar moves.
+ */
+.city-block {
+  min-height: calc(100dvh - 10rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* The sheet that follows a pull down from the top of the page. */
+.pull-sheet {
+  position: fixed;
+  top: 4.5rem;
+  left: 50%;
+  z-index: 40;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: -3.5rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  pointer-events: none;
+  color: var(--text-primary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.pull-spinner {
+  display: block;
+  animation: spin-slow 1s linear infinite;
 }
 
 /* ─── Text helpers ───────────────────────────────────────────────────────────── */
@@ -207,8 +267,164 @@ body {
 /* ─── Weather icon bounce ────────────────────────────────────────────────────── */
 .weather-icon-main { animation: float 3s ease-in-out infinite; }
 
+/* ─── Live sky behind the whole page ─────────────────────────────────────────────
+ * The weather is the page background, with every panel floating on it as glass,
+ * which is how a phone's own weather app reads. Fixed rather than scrolled, so the
+ * sky stays put while the forecast moves over it.
+ */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Scoped to a box instead of the window, for showing several skies side by side. */
+.sky-inset {
+  position: absolute;
+  z-index: auto;
+  border-radius: inherit;
+}
+
+.sky-gradient {
+  position: absolute;
+  inset: 0;
+  transition: background 0.8s ease;
+}
+
+/*
+ * Cloud. Each band holds a strip twice the window's width carrying a tiling noise
+ * texture, and the strip is moved by exactly half its own width, which lands the
+ * second copy where the first began. Moving a transform rather than a background
+ * position keeps the work on the compositor.
+ */
+/*
+ * Faded top and bottom rather than cut off. A band with a hard edge draws a line
+ * across the sky where one layer of noise stops and the next begins.
+ */
+.sky-cloud-band {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 22%, #000 74%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 22%, #000 74%, transparent);
+}
+
+/*
+ * A wisp that passes in front of the reading. Cloud only ever behind the text puts
+ * the reader outside the weather looking at a picture of it; one thin layer over
+ * the top puts them inside it. Kept faint, so nothing becomes hard to read.
+ */
+.sky-front {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 40%, transparent 92%);
+  mask-image: linear-gradient(180deg, transparent, #000 40%, transparent 92%);
+}
+
+.sky-cloud-strip {
+  position: absolute;
+  inset: 0;
+  width: 200%;
+  background-repeat: repeat;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  animation: sky-drift linear infinite;
+  will-change: transform;
+}
+
+/*
+ * Cloud is lit from above and thins into shadow underneath. Without this the masked
+ * noise is evenly bright top to bottom, which is what makes a drawn cloud look flat.
+ * It inherits the strip's mask, so it only ever paints inside the cloud.
+ */
+.sky-cloud-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 38%,
+    rgba(28, 36, 58, 0.28) 74%,
+    rgba(18, 24, 44, 0.42) 100%);
+  mix-blend-mode: overlay;
+}
+
+@keyframes sky-drift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.sky-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* A storm takes the light out of the whole sky, not only out of the cloud. */
+.sky-gloom {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 8, 20, 0.5), rgba(6, 8, 20, 0.16));
+}
+
+.sky-glow {
+  position: absolute;
+  border-radius: 9999px;
+  animation: pulse-glow ease-in-out infinite;
+}
+
+/* The sun or moon itself. It does not pulse; only the light around it does. */
+.sky-disc {
+  position: absolute;
+  border-radius: 9999px;
+}
+
+.sky-star {
+  position: absolute;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.85);
+  animation: twinkle ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 1; }
+}
+
+/* Holds white text and the glass panels legible over the paler daytime skies. */
+.sky-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 10, 26, 0.34), rgba(6, 10, 26, 0.08) 45%, rgba(6, 10, 26, 0.4));
+}
+
+/*
+ * Someone who has asked the system for less motion gets the same sky held still.
+ * Nothing is removed, it simply stops moving. The canvas checks the same setting
+ * and draws a single frame.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sky-cloud-strip, .sky-glow, .sky-star, .weather-icon-main {
+    animation: none;
+  }
+}
+
 /* ─── City carousel: one full-width hero panel per saved city ────────────────── */
+/*
+ * Grows to fill the city block, so a sideways swipe anywhere between the header and
+ * the readings changes city. Confined to the text at the top, the gesture was a
+ * narrow strip on a mostly empty screen and easy to miss.
+ */
 .hero-scroll {
+  flex: 1;
   display: flex;
   overflow-x: auto;
   overflow-y: hidden;
@@ -222,6 +438,8 @@ body {
 .hero-page {
   flex: 0 0 100%;
   min-width: 100%;
+  display: flex;
+  flex-direction: column;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }

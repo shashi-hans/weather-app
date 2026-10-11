@@ -1,72 +1,42 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'weathernow.theme'
 const DARK_QUERY  = '(prefers-color-scheme: dark)'
 
 export type Theme = 'day' | 'night'
 
-function readStoredTheme(): Theme | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY)
-    return saved === 'day' || saved === 'night' ? saved : null
-  } catch {
-    return null
-  }
-}
-
 /**
- * Theme follows the operating system's light/dark setting on desktop and Android.
- * Using the toggle pins a choice that survives restarts; clearing it returns to the system setting.
+ * Theme follows the operating system's light and dark setting, and nothing else.
+ * It reacts while the app is open, so a device that flips on a schedule carries the
+ * app with it.
  */
 export function useTheme() {
-  const [theme, setTheme]   = useState<Theme>('day')
-  const [pinned, setPinned] = useState(false)
+  const [theme, setTheme] = useState<Theme>('day')
 
   useEffect(() => {
-    const media  = window.matchMedia(DARK_QUERY)
-    const stored = readStoredTheme()
-
-    if (stored) {
-      setPinned(true)
-      setTheme(stored)
-      return
+    /*
+     * An earlier build let the reader pin a theme. That choice is cleared on first
+     * run so a pin made then does not quietly override the system from here on.
+     */
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // Storage unavailable: nothing was stored to clear.
     }
 
-    setPinned(false)
+    const media = window.matchMedia(DARK_QUERY)
     setTheme(media.matches ? 'night' : 'day')
 
-    // Track later system changes, including a device that flips theme on a schedule.
     const onChange = (e: MediaQueryListEvent) => setTheme(e.matches ? 'night' : 'day')
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
-  }, [pinned])
+  }, [])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     document.documentElement.style.colorScheme = theme === 'night' ? 'dark' : 'light'
   }, [theme])
 
-  const toggle = useCallback(() => {
-    const next: Theme = theme === 'night' ? 'day' : 'night'
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // Storage unavailable: the choice applies to this session only.
-    }
-    setTheme(next)
-    setPinned(true)
-  }, [theme])
-
-  const followSystem = useCallback(() => {
-    try {
-      window.localStorage.removeItem(STORAGE_KEY)
-    } catch {
-      // Nothing stored to clear.
-    }
-    setPinned(false)
-  }, [])
-
-  return { isNight: theme === 'night', pinned, toggle, followSystem }
+  return { isNight: theme === 'night' }
 }
